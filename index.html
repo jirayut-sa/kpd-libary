@@ -67,19 +67,26 @@
             </div>
 
             <div class="flex flex-col sm:flex-row items-center w-full lg:w-auto flex-grow justify-end gap-3 sm:gap-4">
-                <!-- แฟลชการ์ดสถิติ (ใหม่) -->
-                <div class="flex flex-col items-center sm:items-start bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 w-full sm:w-auto shrink-0 shadow-inner">
-                    <span class="text-[9px] sm:text-[10px] text-rose-500 font-medium text-center">สถิติเข้าใช้งานรวม</span>
-                    <div class="text-xs sm:text-sm font-bold text-brand-red flex items-center justify-center gap-1.5 w-full mt-0.5">
-                        <i data-lucide="activity" class="w-3.5 h-3.5"></i> <span id="headerTotalViews" class="tracking-widest">0</span> ครั้ง
+                
+                <!-- กลุ่มแฟลชการ์ด (จับคู่สถิติและนาฬิกาให้อยู่แนวเดียวกัน) -->
+                <div class="flex flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <!-- แฟลชการ์ดสถิติ -->
+                    <div class="flex-1 sm:flex-none flex flex-col items-center sm:items-start bg-rose-50 px-2 sm:px-3 py-1.5 rounded-lg border border-rose-100 shrink-0 shadow-inner overflow-hidden">
+                        <span class="text-[9px] sm:text-[10px] text-rose-500 font-medium text-center whitespace-nowrap">สถิติใช้งานรวม</span>
+                        <div class="text-[11px] sm:text-sm font-bold text-brand-red flex items-center justify-center gap-1 sm:gap-1.5 w-full mt-0.5">
+                            <i data-lucide="activity" class="w-3 h-3 sm:w-3.5 sm:h-3.5"></i> 
+                            <span id="headerTotalViews" class="tracking-wider sm:tracking-widest">0</span> 
+                            <span class="hidden sm:inline text-[9px] sm:text-[10px]">ครั้ง</span>
+                        </div>
                     </div>
-                </div>
 
-                <!-- แฟลชการ์ดนาฬิกา -->
-                <div class="flex flex-col items-center sm:items-start bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 w-full sm:w-auto shrink-0 shadow-inner">
-                    <span id="realtimeDate" class="text-[9px] sm:text-[10px] text-slate-500 font-medium text-center">กำลังโหลด...</span>
-                    <div class="text-xs sm:text-sm font-bold text-slate-700 flex items-center justify-center gap-1.5 w-full mt-0.5">
-                        <i data-lucide="clock" class="w-3.5 h-3.5 animate-pulse text-brand-gold"></i> <span id="realtimeTime" class="tracking-widest">--:--:--</span>
+                    <!-- แฟลชการ์ดนาฬิกา -->
+                    <div class="flex-1 sm:flex-none flex flex-col items-center sm:items-start bg-slate-50 px-2 sm:px-3 py-1.5 rounded-lg border border-slate-100 shrink-0 shadow-inner overflow-hidden">
+                        <span id="realtimeDate" class="text-[9px] sm:text-[10px] text-slate-500 font-medium text-center whitespace-nowrap">กำลังโหลด...</span>
+                        <div class="text-[11px] sm:text-sm font-bold text-slate-700 flex items-center justify-center gap-1 sm:gap-1.5 w-full mt-0.5">
+                            <i data-lucide="clock" class="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-pulse text-brand-gold"></i> 
+                            <span id="realtimeTime" class="tracking-wider sm:tracking-widest">--:--:--</span>
+                        </div>
                     </div>
                 </div>
 
