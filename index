@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ห้องสมุดออนไลน์ - โรงเรียนบ้านโคกประดู่</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: { colors: { brand: { red: '#991B1B', gold: '#D97706', goldlight: '#F59E0B', dark: '#1E1B4B' } } },
+                screens: { 'xs': '480px' }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', 'Sarabun', sans-serif; background-color: #f8fafc; overflow-x: hidden; }
+        .book-card { perspective: 1000px; }
+        .book-cover-container { transition: transform 0.5s ease; transform-style: preserve-3d; }
+        .book-card:hover .book-cover-container { transform: rotateY(-10deg) scale(1.03); box-shadow: -8px 8px 15px rgba(0, 0, 0, 0.15); }
+        .page-shadow-left { box-shadow: inset -15px 0 30px -15px rgba(0,0,0,0.15); }
+        .page-shadow-right { box-shadow: inset 15px 0 30px -15px rgba(0,0,0,0.15); }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .upload-area { border: 2px dashed #cbd5e1; transition: all 0.3s; }
+        .upload-area:hover { border-color: #991B1B; background-color: #fef2f2; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Top Announcement Bar with Daily Quote -->
+    <div class="bg-brand-red text-white text-[10px] sm:text-xs md:text-sm py-2 px-4 border-b border-brand-gold flex flex-col md:flex-row items-center justify-between gap-1.5">
+        <div class="mx-auto flex flex-col md:flex-row items-center gap-1 sm:gap-1.5 md:gap-3 text-center md:text-left w-full justify-center">
+            <span class="font-medium whitespace-nowrap">✨ แหล่งเรียนรู้ดิจิทัล โรงเรียนบ้านโคกประดู่ ✨</span>
+            <span class="hidden md:inline text-brand-goldlight opacity-50">|</span>
+            <span id="dailyQuoteDisplay" class="text-brand-goldlight font-semibold tracking-wide line-clamp-1 text-center">
+                กำลังโหลดแรงบันดาลใจ...
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Navigation Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-40 transition-all border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col lg:flex-row items-center justify-between gap-4">
+            
+            <div class="flex items-center justify-between w-full lg:w-auto gap-3">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="resetFilters()">
+                    <div class="w-12 h-12 md:w-14 md:h-14 bg-white rounded-full border-2 border-brand-red shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                        <img src="1000016488.jpg" onerror="this.src='https://ui-avatars.com/api/?name=BP&background=991B1B&color=fff&size=128'" alt="โลโก้โรงเรียนบ้านโคกประดู่" class="w-full h-full object-cover">
+                    </div>
+                    <div>
+                        <h1 class="text-sm sm:text-base md:text-xl font-bold text-brand-red leading-tight truncate">ห้องสมุดดิจิทัลบ้านโคกประดู่</h1>
+                        <p class="text-[9px] sm:text-[10px] md:text-xs text-slate-500 font-medium">สพป.สตูล</p>
+                    </div>
+                </div>
+                
+                <button id="authBtnMobile" onclick="handleAuthAction()" class="lg:hidden flex items-center justify-center w-9 h-9 sm:w-auto sm:px-3 sm:py-1.5 text-xs font-semibold text-brand-red bg-red-50 hover:bg-red-100 rounded-lg transition-all shadow-sm shrink-0">
+                    <i data-lucide="shield" class="w-4 h-4 sm:w-3.5 sm:h-3.5"></i>
+                    <span id="authBtnTextMobile" class="hidden sm:inline ml-1.5">เข้าระบบครู</span>
+                </button>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center w-full lg:w-auto flex-grow justify-end gap-3 sm:gap-4">
+                <div class="flex flex-col items-center sm:items-start bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 w-full sm:w-auto shrink-0 shadow-inner">
+                    <span id="realtimeDate" class="text-[9px] sm:text-[10px] text-slate-500 font-medium text-center">กำลังโหลด...</span>
+                    <div class="text-xs sm:text-sm font-bold text-brand-red flex items-center justify-center gap-1.5 w-full mt-0.5">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 animate-pulse"></i> <span id="realtimeTime" class="tracking-widest">--:--:--</span>
+                    </div>
+                </div>
+
+                <div class="w-full lg:max-w-xs xl:max-w-md relative">
+                    <input type="text" id="searchInput" oninput="handleSearch()" placeholder="ค้นหาชื่อสื่อ หรือหมวดหมู่..." class="w-full pl-9 pr-8 py-2 rounded-full border border-slate-200 focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-xs sm:text-sm bg-slate-50 focus:bg-white shadow-sm">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                    <button onclick="clearSearch()" id="clearSearchBtn" class="absolute right-3 top-2.5 hidden text-slate-400 hover:text-brand-red transition-colors">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <button id="authBtnDesktop" onclick="handleAuthAction()" class="hidden lg:flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-brand-red hover:bg-red-800 rounded-lg transition-all shadow-sm shrink-0">
+                    <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+                    <span id="authBtnTextDesktop">เข้าสู่ระบบครู</span>
+                </button>
+            </div>
+            
+        </div>
+    </header>
+
+    <!-- Admin Floating Control Banner -->
+    <div id="adminPanelBanner" class="hidden bg-slate-800 text-white border-y border-slate-900 py-2.5 px-4 shadow-inner">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-2 text-amber-400">
+                <i data-lucide="settings-2" class="w-4 h-4"></i>
+                <span class="text-xs font-bold tracking-wide">แผงควบคุมระบบ (Admin Panel)</span>
+            </div>
+            <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
+                <button onclick="openAddMediaModal()" class="flex-1 md:flex-none justify-center px-3 py-2 md:py-1.5 bg-brand-red hover:bg-red-700 text-white text-[11px] md:text-[10px] font-bold rounded flex items-center gap-1.5 transition-colors">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> เพิ่มสื่อใหม่
+                </button>
+                <button onclick="openManageCategoriesModal()" class="flex-1 md:flex-none justify-center px-3 py-2 md:py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] md:text-[10px] font-bold rounded flex items-center gap-1.5 transition-colors">
+                    <i data-lucide="tags" class="w-3.5 h-3.5"></i> หมวดหมู่
+                </button>
+                <button onclick="openConfigModal()" class="flex-1 md:flex-none justify-center px-3 py-2 md:py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-[11px] md:text-[10px] font-bold rounded flex items-center gap-1.5 transition-colors">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i> ตั้งค่าระบบคลาวด์
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main id="librarySection" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+        
+        <!-- Loading State (Shown while fetching API) -->
+        <div id="mainLoader" class="flex flex-col items-center justify-center py-20 text-slate-400">
+            <i data-lucide="loader-2" class="w-10 h-10 animate-spin mb-3 text-brand-red"></i>
+            <p class="text-sm font-semibold text-slate-600">กำลังเชื่อมต่อฐานข้อมูลห้องสมุด...</p>
+        </div>
+
+        <div id="contentWrapper" class="hidden flex-col gap-6">
+            <!-- Dashboard Stats & Chart Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
+                <div class="bg-gradient-to-br from-brand-red to-red-900 rounded-2xl p-4 sm:p-5 text-white shadow-md flex items-center justify-between relative overflow-hidden min-h-[120px]">
+                    <div class="z-10 flex flex-col justify-center w-full">
+                        <p class="text-red-100 text-[10px] sm:text-xs font-medium mb-1">สถิติการเปิดอ่านสื่อรวมทั้งหมด</p>
+                        <h3 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mt-1" id="totalViewsStat">0</h3>
+                    </div>
+                    <i data-lucide="bar-chart-2" class="w-20 h-20 text-white opacity-10 absolute -right-2 -bottom-2 transform rotate-12 z-0"></i>
+                </div>
+                
+                <div class="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-1.5"><i data-lucide="award" class="w-3.5 h-3.5 text-brand-gold"></i> 5 อันดับสื่อยอดนิยม</h4>
+                    </div>
+                    <div id="topBooksChart" class="space-y-2.5 flex-grow flex flex-col justify-center"></div>
+                </div>
+            </section>
+
+            <!-- Filters -->
+            <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200">
+                <div class="mb-5 sm:mb-6">
+                    <span class="block text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <i data-lucide="layers" class="w-3 h-3 text-brand-gold"></i> เลือกประเภทสื่อ
+                    </span>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3" id="mediaTypeCards">
+                        <div onclick="setFilterType('all')" id="type-card-all" class="cursor-pointer border-2 border-brand-red bg-red-50 text-brand-red p-2.5 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.02]">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-brand-red text-white flex items-center justify-center shrink-0"><i data-lucide="layout-grid" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                            <div><h4 class="font-bold text-[11px] sm:text-xs md:text-sm">สื่อทั้งหมด</h4></div>
+                        </div>
+                        <div onclick="setFilterType('PDF')" id="type-card-PDF" class="cursor-pointer border border-slate-200 bg-white text-slate-600 p-2.5 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.02] shadow-sm">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 transition-colors" id="type-icon-box-PDF"><i data-lucide="file-text" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                            <div><h4 class="font-bold text-[11px] sm:text-xs md:text-sm">อีบุ๊ก (PDF)</h4></div>
+                        </div>
+                        <div onclick="setFilterType('Video')" id="type-card-Video" class="cursor-pointer border border-slate-200 bg-white text-slate-600 p-2.5 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.02] shadow-sm">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 transition-colors" id="type-icon-box-Video"><i data-lucide="video" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                            <div><h4 class="font-bold text-[11px] sm:text-xs md:text-sm">วิดีโอศึกษา</h4></div>
+                        </div>
+                        <div onclick="setFilterType('Image')" id="type-card-Image" class="cursor-pointer border border-slate-200 bg-white text-slate-600 p-2.5 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.02] shadow-sm">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 transition-colors" id="type-icon-box-Image"><i data-lucide="image" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                            <div><h4 class="font-bold text-[11px] sm:text-xs md:text-sm">ภาพความรู้</h4></div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="block text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <i data-lucide="tag" class="w-3 h-3 text-brand-gold"></i> เลือกหมวดหมู่วิชา
+                    </span>
+                    <div class="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3" id="categoryFlashcards"></div>
+                </div>
+            </section>
+
+            <!-- Books Catalog -->
+            <section class="flex-grow">
+                <div class="flex items-center justify-between mb-4 px-1">
+                    <p class="text-[10px] sm:text-xs text-slate-500 font-medium">ผลการค้นหา <span id="booksCount" class="font-bold text-brand-red text-xs sm:text-sm">0</span> รายการ</p>
+                    <select id="sortBy" onchange="handleSort()" class="text-[10px] sm:text-xs bg-white border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-brand-red text-slate-600 shadow-sm cursor-pointer">
+                        <option value="newest">อัปเดตล่าสุด</option>
+                        <option value="popular">ยอดนิยม</option>
+                    </select>
+                </div>
+                <div id="emptyState" class="hidden flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center mx-1">
+                    <div class="w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-2"><i data-lucide="search-x" class="w-5 h-5"></i></div>
+                    <h4 class="text-xs sm:text-sm font-bold text-slate-700">ไม่พบสื่อการสอนที่ตรงกัน</h4>
+                </div>
+                <div id="booksGrid" class="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5"></div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Unified Modal Viewer -->
+    <div id="viewerModal" class="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-0 sm:p-4 md:p-6 transition-opacity duration-300">
+        <div id="modalViewerContent" class="bg-white w-full max-w-5xl h-full sm:h-[90vh] sm:rounded-2xl flex flex-col shadow-2xl relative overflow-hidden transition-all duration-300">
+            <div class="flex items-center justify-between p-2.5 sm:p-3 border-b border-slate-200 bg-slate-50 z-10 shrink-0">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <span id="modalTypeBadge" class="px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-brand-red text-white shrink-0"></span>
+                    <h3 id="modalTitle" class="font-bold text-slate-800 text-xs sm:text-sm truncate pr-2">กำลังเปิดสื่อ...</h3>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button onclick="toggleFullscreen()" class="p-1.5 sm:p-2 text-slate-500 hover:text-brand-red hover:bg-slate-200 rounded-md transition-colors" title="เต็มจอ">
+                        <i data-lucide="maximize-2" id="fullscreenIcon" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="closeViewer()" class="p-1.5 sm:p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-grow flex flex-col items-center justify-center bg-slate-800 p-2 sm:p-4 relative overflow-hidden">
+                <!-- PDF Viewer (Flipbook) -->
+                <div id="pdfViewer" class="w-full h-full flex flex-col items-center justify-center hidden">
+                    <div class="relative flex items-center justify-center w-full max-w-3xl flex-grow perspective-1000 px-6 sm:px-10">
+                        <button onclick="prevPage()" class="absolute left-0 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-left" class="w-5 h-5 sm:w-6 h-6"></i></button>
+                        
+                        <div id="bookMockContainer" class="flex w-full aspect-auto min-h-[50vh] sm:aspect-[4/3] sm:max-h-[70vh] bg-amber-50 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-amber-200 relative transition-transform duration-300 transform-style-3d overflow-hidden">
+                            <div class="w-1/2 h-full bg-white p-3 sm:p-8 flex flex-col justify-between rounded-l-lg page-shadow-left relative border-r border-slate-200">
+                                <div class="text-[8px] sm:text-[9px] text-slate-400 font-bold border-b pb-1 truncate">ร.ร.บ้านโคกประดู่</div>
+                                <div class="flex-grow flex flex-col justify-center py-2 overflow-y-auto custom-scrollbar">
+                                    <h4 id="bookLeftTitle" class="font-bold text-brand-red text-xs sm:text-base mb-1.5 sm:mb-2">หัวข้อหลัก</h4>
+                                    <p id="bookLeftPara" class="text-[10px] sm:text-xs text-slate-600 leading-relaxed whitespace-pre-line">เนื้อหาหน้าซ้าย...</p>
+                                </div>
+                                <div class="text-right text-[8px] sm:text-[9px] font-bold text-slate-400" id="leftPageNum">หน้า 1</div>
+                            </div>
+                            <div class="w-1/2 h-full bg-white p-3 sm:p-8 flex flex-col justify-between rounded-r-lg page-shadow-right relative">
+                                <div class="text-[8px] sm:text-[9px] text-slate-400 font-bold border-b pb-1 text-right truncate" id="bookRightCategory">หมวดหมู่</div>
+                                <div class="flex-grow flex flex-col justify-center py-2 overflow-y-auto custom-scrollbar">
+                                    <p id="bookRightPara" class="text-[10px] sm:text-xs text-slate-600 leading-relaxed whitespace-pre-line">เนื้อหาหน้าขวา...</p>
+                                </div>
+                                <div class="text-left text-[8px] sm:text-[9px] font-bold text-slate-400" id="rightPageNum">หน้า 2</div>
+                            </div>
+                            <div class="absolute inset-y-0 left-1/2 -ml-[1px] w-[2px] bg-gradient-to-r from-slate-300 to-transparent pointer-events-none"></div>
+                        </div>
+
+                        <button onclick="nextPage()" class="absolute right-0 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-right" class="w-5 h-5 sm:w-6 h-6"></i></button>
+                    </div>
+                </div>
+                <!-- Video Viewer -->
+                <div id="videoViewer" class="w-full w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden shadow-2xl hidden">
+                    <iframe id="videoIframe" class="w-full h-full" src="" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                </div>
+                <!-- Image Viewer -->
+                <div id="imageViewer" class="w-full h-full flex flex-col items-center justify-center hidden p-2">
+                    <img id="imageContent" src="" class="max-w-full max-h-[75vh] object-contain rounded shadow-lg border-2 border-white/10">
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 shrink-0 gap-2">
+                <button onclick="shareQR()" class="px-2.5 py-1.5 sm:px-3 text-slate-600 bg-white border border-slate-300 hover:text-brand-red rounded-md text-[10px] font-bold transition-colors flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> <span class="hidden xs:inline">แชร์ QR</span>
+                </button>
+                <div class="flex gap-2 flex-grow justify-end">
+                    <a id="externalBtn" href="" target="_blank" class="px-3 py-1.5 bg-brand-red hover:bg-red-800 text-white text-[10px] font-bold rounded-md shadow-sm transition-colors flex items-center gap-1">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i> เปิดลิงก์ต้นฉบับ
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals... -->
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-5 w-full max-w-xs shadow-2xl relative">
+            <button onclick="document.getElementById('loginModal').classList.add('hidden')" class="absolute right-3 top-3 text-slate-400 hover:text-rose-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <div class="flex justify-center mb-3 text-brand-red"><i data-lucide="shield-alert" class="w-7 h-7"></i></div>
+            <h4 class="font-bold text-center text-slate-800 text-xs sm:text-sm mb-4">ยืนยันสิทธิ์แอดมิน</h4>
+            <form id="loginForm" onsubmit="submitLogin(event)" class="space-y-3">
+                <input type="text" id="usernameInput" required placeholder="ชื่อผู้ใช้" class="w-full px-3 py-2 border rounded bg-slate-50 text-[11px] sm:text-xs focus:ring-1 focus:ring-brand-red outline-none">
+                <input type="password" id="passwordInput" required placeholder="รหัสผ่าน" class="w-full px-3 py-2 border rounded bg-slate-50 text-[11px] sm:text-xs focus:ring-1 focus:ring-brand-red outline-none">
+                <button type="submit" class="w-full py-2 bg-brand-red text-white text-[11px] sm:text-xs font-bold rounded shadow-sm">เข้าสู่ระบบ</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Add Media Modal -->
+    <div id="addMediaModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-2 sm:p-4">
+        <div class="bg-white rounded-xl w-full max-w-lg p-4 sm:p-5 relative shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+            <button onclick="closeAddMediaModal()" class="absolute right-3 top-3 text-slate-400 hover:text-rose-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <div class="flex items-center gap-2 mb-3 pb-2 border-b shrink-0">
+                <i data-lucide="upload-cloud" class="w-4 h-4 text-brand-red"></i>
+                <h3 class="font-bold text-slate-800 text-xs sm:text-sm">เพิ่มสื่อใหม่เข้าระบบ</h3>
+            </div>
+            
+            <div id="uploadingOverlay" class="hidden absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm">
+                <i data-lucide="loader-2" class="w-8 h-8 text-brand-red animate-spin mb-2"></i>
+                <p class="font-bold text-slate-700 text-xs">กำลังเชื่อมต่อฐานข้อมูล...</p>
+            </div>
+
+            <form id="addMediaForm" onsubmit="submitAddMedia(event)" class="space-y-3 text-[10px] sm:text-xs overflow-y-auto custom-scrollbar pr-1 flex-grow">
+                <div>
+                    <label class="block font-semibold text-slate-600 mb-1">ชื่อหนังสือ / สื่อ *</label>
+                    <input type="text" id="newTitle" required class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50 focus:bg-white">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-600 mb-1">ประเภท *</label>
+                        <select id="newType" required class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50">
+                            <option value="PDF">อีบุ๊ก (PDF)</option><option value="Video">วิดีโอ (YouTube)</option><option value="Image">รูปภาพ (Image)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 mb-1">หมวดหมู่ *</label>
+                        <select id="newCategory" required class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 mb-1">ลิงก์ Google Drive / YouTube *</label>
+                    <input type="url" id="newViewLink" required placeholder="https://" class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 mb-1">รูปหน้าปก (Cover) *</label>
+                    <div class="upload-area bg-slate-50 rounded-lg p-3 text-center cursor-pointer relative" onclick="document.getElementById('coverFileInput').click()">
+                        <input type="file" id="coverFileInput" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+                        <div id="uploadPrompt" class="flex flex-col items-center">
+                            <i data-lucide="image-plus" class="w-5 h-5 text-slate-400 mb-1"></i>
+                            <span class="font-semibold text-slate-500 text-[10px]">คลิกเลือกภาพหน้าปก (ไม่เกิน 2MB)</span>
+                        </div>
+                        <div id="imagePreviewContainer" class="hidden relative h-20 flex items-center justify-center bg-black/5 rounded">
+                            <img id="coverPreviewImg" src="" class="max-h-full object-contain rounded shadow-sm">
+                            <button type="button" onclick="event.stopPropagation(); removeSelectedImage()" class="absolute top-1 right-1 bg-white text-rose-600 p-1 rounded-full shadow hover:bg-rose-50"><i data-lucide="trash" class="w-3 h-3"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+            <div class="flex gap-2 pt-3 mt-2 border-t shrink-0">
+                <button type="button" onclick="closeAddMediaModal()" class="flex-1 py-1.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded">ยกเลิก</button>
+                <button type="button" onclick="document.getElementById('addMediaForm').requestSubmit()" class="flex-1 py-1.5 bg-brand-red text-white text-[11px] font-bold rounded shadow-md">บันทึกส่งข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div id="qrModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-4 sm:p-5 w-full max-w-xs flex flex-col items-center relative">
+            <button onclick="document.getElementById('qrModal').classList.add('hidden')" class="absolute right-3 top-3 text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <div class="p-2 bg-slate-100 rounded-lg mb-2 shadow-inner"><div id="qrcode" class="w-32 h-32"></div></div>
+            <p class="text-[9px] sm:text-[10px] text-slate-500">สแกนเพื่อเปิดอ่านบนมือถือ</p>
+        </div>
+    </div>
+
+    <!-- Manage Categories Modal -->
+    <div id="manageCategoriesModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-xs p-4 sm:p-5 relative shadow-2xl">
+            <button onclick="document.getElementById('manageCategoriesModal').classList.add('hidden')" class="absolute right-3 top-3 text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <h3 class="font-bold text-slate-800 text-xs sm:text-sm mb-3">จัดการหมวดหมู่</h3>
+            <div class="flex gap-2 mb-3">
+                <input type="text" id="newCatInput" class="flex-grow px-2 py-1.5 border rounded text-[10px] sm:text-xs outline-none focus:border-brand-red">
+                <button onclick="addCat()" class="bg-brand-red text-white px-3 py-1.5 rounded text-[10px] font-bold">เพิ่ม</button>
+            </div>
+            <div id="catListUI" class="max-h-40 overflow-y-auto space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- Config API Modal -->
+    <div id="configModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl w-full max-w-xs p-4 sm:p-5 relative shadow-2xl">
+            <button onclick="document.getElementById('configModal').classList.add('hidden')" class="absolute right-3 top-3 text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <h3 class="font-bold text-slate-800 text-xs sm:text-sm mb-3">ตั้งค่าเชื่อมต่อ Google Sheet</h3>
+            <div class="space-y-2 text-[9px] sm:text-[10px] text-slate-600 mb-4">
+                <div>
+                    <label class="block font-bold mb-1">API Endpoint URL (Apps Script)</label>
+                    <input type="url" id="apiEndpoint" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-2 py-1.5 border rounded outline-none focus:border-brand-red">
+                </div>
+            </div>
+            <button onclick="saveApiConfig()" class="w-full py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded shadow">บันทึกและซิงค์ข้อมูล</button>
+        </div>
+    </div>
+
+    <audio id="pageFlipSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav" preload="auto"></audio>
+
+    <script>
+        // Data Store (Fallback Mock Data)
+        const mockBooks = [
+            { id: 1, title: "หนังสือตัวอย่าง (Mock Data) กรุณาเชื่อมต่อ API", type: "PDF", category: "วิทยาศาสตร์", drive_view_link: "#", cover_url: "https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&q=80", upload_date: "2026-07-15", views: 0 }
+        ];
+        const mockCats = ["นิทาน & วรรณกรรม", "วิทยาศาสตร์", "พละศึกษา", "สังคมศึกษา", "คณิตศาสตร์", "ภาษาไทย"];
+        const catIcons = { "นิทาน & วรรณกรรม": "sparkles", "วิทยาศาสตร์": "beaker", "พละศึกษา": "activity", "สังคมศึกษา": "globe", "คณิตศาสตร์": "calculator", "ภาษาไทย": "pencil" };
+        const motivationalQuotes = [
+            "การอ่านคือรากฐานของความสำเร็จในอนาคต", "หนังสือหนึ่งเล่ม เปิดโลกกว้างให้เราได้เสมอ", "เรียนรู้ในวันนี้ เพื่อชีวิตที่ดีในวันหน้า",
+            "ทุกการพลิกหน้ากระดาษ คือการก้าวเดินไปข้างหน้า", "ขุมทรัพย์ที่ล้ำค่าที่สุด คือปัญญาที่ได้จากการอ่าน"
+        ];
+
+        let books = [], categories = [], filteredBooks = [];
+        let filterCat = "all", filterType = "all", searchQuery = "";
+        let currentBook = null, currentFlipPage = 0, isAdmin = false;
+        let uploadBase64 = null, uploadMime = null, uploadName = null;
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            setupDailyQuote();
+            startClock();
+            
+            // Check Admin Status First
+            isAdmin = localStorage.getItem('kp_admin') === 'true';
+            document.getElementById('adminPanelBanner').classList.toggle('hidden', !isAdmin);
+            document.getElementById('adminBadgeIndicator').classList.toggle('hidden', !isAdmin);
+            document.getElementById('authBtnTextDesktop').innerText = isAdmin ? "ออกจากระบบ" : "เข้าสู่ระบบครู";
+            document.getElementById('authBtnTextMobile').innerText = isAdmin ? "ออกระบบ" : "เข้าระบบ";
+            
+            const apiEndpoint = localStorage.getItem('kp_api_endpoint');
+            document.getElementById('apiEndpoint').value = apiEndpoint || "";
+
+            if (apiEndpoint && apiEndpoint.includes('script.google')) {
+                // Fetch from Real Google Sheet
+                fetchFromGoogleSheet(apiEndpoint);
+            } else {
+                // Load Local/Mock Data
+                loadLocalData();
+            }
+        });
+
+        async function fetchFromGoogleSheet(url) {
+            document.getElementById('mainLoader').classList.remove('hidden');
+            document.getElementById('contentWrapper').classList.add('hidden');
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data && Array.isArray(data) && data.length > 0) {
+                    // Mapping Data from Sheet (ID, Title, Type, Category, Drive_View_Link, Drive_Download_Link, Cover_URL, Upload_Date, Views)
+                    books = data.map(item => ({
+                        id: item.ID || Date.now(),
+                        title: item.Title || "ไม่มีชื่อ",
+                        type: item.Type || "PDF",
+                        category: item.Category || "ทั่วไป",
+                        drive_view_link: item.Drive_View_Link || "#",
+                        cover_url: item.Cover_URL || "https://ui-avatars.com/api/?name=Book&background=f1f5f9",
+                        upload_date: item.Upload_Date || "N/A",
+                        views: parseInt(item.Views) || 0
+                    }));
+                    
+                    // Extract unique categories from fetched data
+                    const sheetCats = [...new Set(books.map(b => b.category))];
+                    categories = [...new Set([...mockCats, ...sheetCats])];
+                    
+                    showToast("ซิงค์ข้อมูลจากคลาวด์สำเร็จ", "success");
+                } else {
+                    throw new Error("Empty Array");
+                }
+            } catch (err) {
+                console.log(err);
+                showToast("ไม่สามารถดึงข้อมูลจาก Sheet ได้ กำลังใช้ข้อมูลจำลอง", "warning");
+                loadLocalData();
+            } finally {
+                filteredBooks = [...books];
+                document.getElementById('mainLoader').classList.add('hidden');
+                document.getElementById('contentWrapper').classList.remove('hidden');
+                applyFilters();
+            }
+        }
+
+        function loadLocalData() {
+            try { books = JSON.parse(localStorage.getItem('kp_books')); if(!books || !books.length) books = [...mockBooks]; } catch(e) { books = [...mockBooks]; }
+            try { categories = JSON.parse(localStorage.getItem('kp_cats')); if(!categories || !categories.length) categories = [...mockCats]; } catch(e) { categories = [...mockCats]; }
+            filteredBooks = [...books];
+            document.getElementById('mainLoader').classList.add('hidden');
+            document.getElementById('contentWrapper').classList.remove('hidden');
+            applyFilters();
+        }
+
+        function setupDailyQuote() {
+            const now = new Date();
+            const idx = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86400000) % motivationalQuotes.length;
+            const el = document.getElementById('dailyQuoteDisplay');
+            if (el) { el.innerHTML = `<i data-lucide="lightbulb" class="w-3 h-3 sm:w-3.5 sm:h-3.5 inline mb-0.5 text-brand-goldlight"></i> "${motivationalQuotes[idx||0]}"`; el.classList.remove('animate-pulse'); }
+        }
+
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                const dEl = document.getElementById('realtimeDate'), tEl = document.getElementById('realtimeTime');
+                if(dEl) dEl.innerText = now.toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                if(tEl) tEl.innerText = now.toLocaleTimeString('th-TH', { hour12: false }) + ' น.';
+            }, 1000);
+        }
+
+        function showToast(msg, type = "info") {
+            const box = document.createElement('div');
+            const color = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-rose-600' : 'bg-slate-800');
+            box.className = `${color} text-white shadow-lg rounded-lg py-2 px-3 flex items-center gap-2 text-[10px] font-bold transition-all duration-300 translate-y-2 opacity-0`;
+            box.innerHTML = `<i data-lucide="${type==='success'?'check-circle':'info'}" class="w-3.5 h-3.5 shrink-0"></i><span>${msg}</span>`;
+            document.getElementById('toastContainer').appendChild(box); lucide.createIcons();
+            setTimeout(() => box.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => { box.classList.add('translate-y-2', 'opacity-0'); setTimeout(()=>box.remove(), 300); }, 3000);
+        }
+
+        function handleAuthAction() {
+            if(isAdmin) { localStorage.removeItem('kp_admin'); location.reload(); }
+            else document.getElementById('loginModal').classList.remove('hidden');
+        }
+
+        function submitLogin(e) {
+            e.preventDefault();
+            if(document.getElementById('usernameInput').value === 'admin' && document.getElementById('passwordInput').value === 'admin1234') {
+                localStorage.setItem('kp_admin', 'true'); location.reload();
+            } else showToast("รหัสผ่านผิดพลาด", "error");
+        }
+
+        function renderCats() {
+            document.getElementById('categoryFlashcards').innerHTML = ['all', ...categories].map(c => {
+                const isSel = filterCat === c; const count = c === 'all' ? books.length : books.filter(b=>b.category===c).length;
+                return `
+                <div onclick="setFilterCat('${c}')" class="cursor-pointer border-2 ${isSel ? 'border-brand-red bg-red-50 text-brand-red':'border-slate-100 bg-white text-slate-600'} p-2 sm:p-2.5 rounded-xl flex flex-col justify-between h-16 sm:h-20 shadow-sm transition-transform hover:scale-[1.02]">
+                    <div class="flex justify-between items-start">
+                        <div class="w-6 h-6 rounded-lg ${isSel ? 'bg-brand-red text-white':'bg-slate-100 text-slate-400'} flex items-center justify-center"><i data-lucide="${c==='all'?'layout-grid':(catIcons[c]||'book')}" class="w-3 h-3"></i></div>
+                        <span class="text-[8px] font-bold px-1 py-0.5 rounded ${isSel ? 'bg-brand-red text-white':'bg-slate-100 text-slate-500'}">${count}</span>
+                    </div>
+                    <h4 class="font-bold text-[9px] sm:text-[10px] truncate">${c==='all'?'ทุกวิชา':c}</h4>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function setFilterCat(c) { filterCat = c; applyFilters(); }
+        function setFilterType(t) {
+            filterType = t;
+            ['all','PDF','Video','Image'].forEach(type => {
+                const el = document.getElementById(`type-card-${type}`), ic = document.getElementById(`type-icon-box-${type}`);
+                if(el) el.className = `cursor-pointer border ${type===t ? 'border-brand-red bg-red-50 text-brand-red shadow-sm' : 'border-slate-200 bg-white text-slate-600'} p-2.5 sm:p-3 rounded-xl flex items-center gap-2 sm:gap-3 transition-transform hover:scale-[1.02]`;
+                if(ic) ic.className = `w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${type===t ? 'bg-brand-red text-white' : 'bg-slate-50 text-slate-500'}`;
+            }); applyFilters();
+        }
+
+        function handleSearch() { searchQuery = document.getElementById('searchInput').value.trim().toLowerCase(); applyFilters(); }
+        function clearSearch() { document.getElementById('searchInput').value = ""; searchQuery = ""; applyFilters(); }
+
+        function applyFilters() {
+            filteredBooks = books.filter(b => (filterCat === 'all' || b.category === filterCat) && (filterType === 'all' || b.type === filterType) && (b.title.toLowerCase().includes(searchQuery) || b.category.toLowerCase().includes(searchQuery)));
+            document.getElementById('clearSearchBtn').classList.toggle('hidden', searchQuery.length === 0);
+            renderCats(); handleSort();
+        }
+
+        function handleSort() {
+            const mode = document.getElementById('sortBy').value;
+            filteredBooks.sort((a,b) => mode === 'newest' ? new Date(b.upload_date)-new Date(a.upload_date) : (b.views||0) - (a.views||0));
+            renderBooks();
+        }
+
+        function renderBooks() {
+            document.getElementById('booksCount').innerText = filteredBooks.length;
+            document.getElementById('emptyState').classList.toggle('hidden', filteredBooks.length > 0);
+            
+            // Dashboard Update
+            const topBooks = [...books].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
+            document.getElementById('totalViewsStat').innerText = books.reduce((sum, b) => sum + (b.views || 0), 0).toLocaleString();
+            document.getElementById('topBooksChart').innerHTML = topBooks.map((book, idx) => {
+                const percent = Math.max(3, ((book.views||0) / (topBooks[0].views||1)) * 100);
+                const col = ['bg-brand-red','bg-brand-gold','bg-amber-500','bg-emerald-500','bg-blue-500'][idx] || 'bg-slate-400';
+                return `<div class="flex items-center gap-2 group cursor-pointer" onclick="openViewer(${book.id})">
+                    <div class="w-3 text-right text-[9px] font-bold text-slate-400">${idx+1}</div>
+                    <div class="flex-grow"><div class="flex justify-between text-[9px] text-slate-700 mb-0.5"><span class="truncate max-w-[150px] font-medium">${book.title}</span><span class="font-bold text-slate-500">${book.views||0}</span></div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="${col} h-1.5 rounded-full" style="width: ${percent}%"></div></div></div></div>`;
+            }).join('');
+
+            // Grid Update
+            document.getElementById('booksGrid').innerHTML = filteredBooks.map(b => {
+                const tInfo = b.type === 'Video' ? {i:'video', c:'bg-indigo-100 text-indigo-700'} : (b.type === 'Image' ? {i:'image', c:'bg-emerald-100 text-emerald-700'} : {i:'file-text', c:'bg-red-100 text-brand-red'});
+                const delBtn = isAdmin ? `<button onclick="event.stopPropagation(); deleteBook(${b.id})" class="absolute top-1 right-1 z-20 bg-white/80 text-rose-600 p-1 rounded hover:bg-rose-600 hover:text-white"><i data-lucide="trash" class="w-3 h-3"></i></button>` : '';
+                return `
+                <div class="book-card bg-white rounded-xl border border-slate-100 shadow-sm flex flex-col hover:shadow-lg transition-all relative cursor-pointer" onclick="openViewer(${b.id})">
+                    <div class="relative h-32 sm:h-40 w-full overflow-hidden bg-slate-100 rounded-t-xl">
+                        ${delBtn}
+                        <div class="book-cover-container w-full h-full"><img src="${b.cover_url}" class="w-full h-full object-cover"></div>
+                        <span class="absolute bottom-1 right-1 ${tInfo.c} text-[8px] font-bold px-1.5 py-0.5 rounded shadow"><i data-lucide="${tInfo.i}" class="w-2.5 h-2.5 inline"></i></span>
+                    </div>
+                    <div class="p-2 sm:p-2.5 flex flex-col grow">
+                        <span class="text-[8px] text-slate-400 font-bold">${b.category}</span>
+                        <h4 class="font-bold text-slate-800 text-[10px] sm:text-[11px] mt-0.5 line-clamp-2">${b.title}</h4>
+                        <div class="flex justify-between text-[8px] sm:text-[9px] text-slate-400 mt-auto pt-1.5">
+                            <span><i data-lucide="eye" class="w-2.5 h-2.5 inline"></i> ${b.views||0}</span><span>${b.upload_date}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        // Add Media & Upload
+        function compressImage(file, callback) {
+            const r = new FileReader(); r.onload = (e) => {
+                const img = new Image(); img.onload = () => {
+                    const canvas = document.createElement('canvas'); let w = img.width, h = img.height;
+                    if(w>h && w>600){h*=600/w;w=600;} else if(h>800){w*=800/h;h=800;}
+                    canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    callback(canvas.toDataURL('image/jpeg', 0.8));
+                }; img.src = e.target.result;
+            }; r.readAsDataURL(file);
+        }
+
+        function handleImageSelect(e) {
+            const f = e.target.files[0]; if(!f) return; uploadMime = 'image/jpeg'; uploadName = f.name;
+            compressImage(f, (b64) => {
+                uploadBase64 = b64; document.getElementById('coverPreviewImg').src = b64;
+                document.getElementById('uploadPrompt').classList.add('hidden'); document.getElementById('imagePreviewContainer').classList.remove('hidden');
+            });
+        }
+        function removeSelectedImage() { document.getElementById('coverFileInput').value = ""; uploadBase64 = null; document.getElementById('imagePreviewContainer').classList.add('hidden'); document.getElementById('uploadPrompt').classList.remove('hidden'); }
+        function openAddMediaModal() { document.getElementById('newCategory').innerHTML = categories.map(c=>`<option value="${c}">${c}</option>`).join(''); document.getElementById('addMediaModal').classList.remove('hidden'); }
+        function closeAddMediaModal() { document.getElementById('addMediaModal').classList.add('hidden'); document.getElementById('addMediaForm').reset(); removeSelectedImage(); }
+
+        async function submitAddMedia(e) {
+            e.preventDefault();
+            if(!uploadBase64) return showToast("กรุณาเลือกรูปหน้าปก", "error");
+            document.getElementById('uploadingOverlay').classList.remove('hidden');
+
+            const payload = {
+                title: document.getElementById('newTitle').value.trim(), type: document.getElementById('newType').value,
+                category: document.getElementById('newCategory').value, viewLink: document.getElementById('newViewLink').value.trim(),
+                base64: uploadBase64, filename: uploadName, mimeType: uploadMime
+            };
+
+            const apiUrl = localStorage.getItem('kp_api_endpoint');
+            
+            if(apiUrl && apiUrl.includes('script.google')) {
+                try {
+                    // Send to Google Sheet Backend
+                    const res = await fetch(apiUrl, { method: 'POST', body: JSON.stringify(payload) });
+                    const result = await res.json();
+                    if(result.status === 'success') {
+                        showToast("บันทึกข้อมูลขึ้นคลาวด์สำเร็จ!", "success");
+                        closeAddMediaModal();
+                        fetchFromGoogleSheet(apiUrl); // Refresh Data
+                    } else throw new Error(result.message);
+                } catch(err) {
+                    showToast("API Error: " + err.message, "error");
+                    document.getElementById('uploadingOverlay').classList.add('hidden');
+                }
+            } else {
+                // Local Fallback (No API configured)
+                books.unshift({ id: Date.now(), title: payload.title, type: payload.type, category: payload.category, drive_view_link: payload.viewLink, cover_url: payload.base64, upload_date: new Date().toISOString().split('T')[0], views: 0 });
+                try { localStorage.setItem('kp_books', JSON.stringify(books)); showToast("บันทึกจำลองลงเครื่องสำเร็จ (ยังไม่ได้ต่อ API)", "success"); closeAddMediaModal(); applyFilters(); } 
+                catch(err) { showToast("หน่วยความจำเบราว์เซอร์เต็ม", "error"); books.shift(); }
+                document.getElementById('uploadingOverlay').classList.add('hidden');
+            }
+        }
+
+        // Currently Delete only removes from Local UI to prevent accidental wiping. (For real DB, needs DELETE api in GAS)
+        function deleteBook(id) {
+            if(confirm("ลบสื่อนี้ออกจากหน้าจอ? (หากซิงค์ API ข้อมูลอาจจะกลับมา)")) {
+                books = books.filter(b => b.id !== id); localStorage.setItem('kp_books', JSON.stringify(books)); applyFilters();
+            }
+        }
+
+        function openViewer(id) {
+            currentBook = books.find(b=>b.id === id); if(!currentBook) return;
+            currentBook.views = (currentBook.views||0) + 1; localStorage.setItem('kp_books', JSON.stringify(books)); renderBooks();
+            document.getElementById('modalTitle').innerText = currentBook.title; document.getElementById('modalTypeBadge').innerText = currentBook.type;
+            document.getElementById('externalBtn').href = currentBook.drive_view_link;
+            document.getElementById('pdfViewer').classList.add('hidden'); document.getElementById('videoViewer').classList.add('hidden'); document.getElementById('imageViewer').classList.add('hidden');
+
+            if(currentBook.type === 'PDF') { document.getElementById('pdfViewer').classList.remove('hidden'); currentFlipPage = 0; updateFlipUI(); } 
+            else if(currentBook.type === 'Video') { document.getElementById('videoViewer').classList.remove('hidden'); document.getElementById('videoIframe').src = currentBook.drive_view_link; } 
+            else { document.getElementById('imageViewer').classList.remove('hidden'); document.getElementById('imageContent').src = currentBook.cover_url; }
+            document.getElementById('viewerModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+        }
+        function closeViewer() { if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); document.getElementById('viewerModal').classList.add('hidden'); document.getElementById('videoIframe').src = ""; document.body.style.overflow = ''; }
+        function toggleFullscreen() { const v = document.getElementById('modalViewerContent'); if(!document.fullscreenElement) v.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }
+        document.addEventListener('fullscreenchange', () => { const ic = document.getElementById('fullscreenIcon'); if(ic) { ic.setAttribute('data-lucide', document.fullscreenElement ? 'minimize-2' : 'maximize-2'); lucide.createIcons(); } });
+
+        function updateFlipUI() {
+            if(!currentBook) return;
+            document.getElementById('bookLeftTitle').innerText = currentBook.title; document.getElementById('bookRightCategory').innerText = currentBook.category;
+            document.getElementById('bookLeftPara').innerText = "โปรดคลิก 'เปิดลิงก์ต้นฉบับ' ด้านล่างเพื่ออ่านเนื้อหาฉบับเต็มจากคลาวด์"; document.getElementById('bookRightPara').innerText = "เนื่องจากนี่คือหน้าต่างพรีวิวเสมือนจริง";
+        }
+        function prevPage() { document.getElementById('bookMockContainer').style.transform = 'rotateY(8deg) scale(0.98)'; document.getElementById('pageFlipSound').currentTime=0; document.getElementById('pageFlipSound').play().catch(()=>{}); setTimeout(() => { document.getElementById('bookMockContainer').style.transform = 'rotateY(0deg) scale(1)'; updateFlipUI(); }, 200); }
+        function nextPage() { document.getElementById('bookMockContainer').style.transform = 'rotateY(-8deg) scale(0.98)'; document.getElementById('pageFlipSound').currentTime=0; document.getElementById('pageFlipSound').play().catch(()=>{}); setTimeout(() => { document.getElementById('bookMockContainer').style.transform = 'rotateY(0deg) scale(1)'; updateFlipUI(); }, 200); }
+
+        function shareQR() { if(!currentBook) return; document.getElementById('qrcode').innerHTML = ""; new QRCode(document.getElementById("qrcode"), { text: currentBook.drive_view_link, width: 128, height: 128, colorDark: "#991B1B", colorLight: "#ffffff" }); document.getElementById('qrModal').classList.remove('hidden'); }
+        function openManageCategoriesModal() { document.getElementById('catListUI').innerHTML = categories.map(c => `<div class="flex justify-between items-center bg-slate-50 p-2 rounded text-[10px] border"><span>${c}</span><button onclick="delCat('${c}')" class="text-rose-600"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button></div>`).join(''); lucide.createIcons(); document.getElementById('manageCategoriesModal').classList.remove('hidden'); }
+        function addCat() { const val = document.getElementById('newCatInput').value.trim(); if(val && !categories.includes(val)) { categories.push(val); localStorage.setItem('kp_cats', JSON.stringify(categories)); document.getElementById('newCatInput').value = ""; openManageCategoriesModal(); applyFilters(); showToast("เพิ่มหมวดหมู่แล้ว"); } }
+        function delCat(c) { if(books.some(b=>b.category === c)) return showToast("ลบไม่ได้ มีสื่อในหมวดนี้", "error"); categories = categories.filter(x=>x!==c); localStorage.setItem('kp_cats', JSON.stringify(categories)); openManageCategoriesModal(); applyFilters(); showToast("ลบหมวดหมู่แล้ว"); }
+
+        function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
+        function saveApiConfig() {
+            const url = document.getElementById('apiEndpoint').value.trim();
+            localStorage.setItem('kp_api_endpoint', url);
+            document.getElementById('configModal').classList.add('hidden');
+            if(url) fetchFromGoogleSheet(url); else { showToast("ยกเลิก API ใช้ฐานข้อมูลเดิม", "info"); loadLocalData(); }
+        }
+    </script>
+</body>
+</html>
