@@ -288,7 +288,7 @@
                     <div>
                         <label class="block font-semibold text-slate-600 mb-1">ประเภท *</label>
                         <select id="newType" required class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50">
-                            <option value="PDF">อีบุ๊ก (PDF)</option><option value="Video">วิดีโอ (YouTube)</option><option value="Image">รูปภาพ (Image)</option>
+                            <option value="PDF">อีบุ๊ก (PDF)</option><option value="Video">วิดีโอ (Video)</option><option value="Image">รูปภาพ (Image)</option>
                         </select>
                     </div>
                     <div>
@@ -296,10 +296,42 @@
                         <select id="newCategory" required class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50"></select>
                     </div>
                 </div>
-                <div>
-                    <label class="block font-semibold text-slate-600 mb-1">ลิงก์ Google Drive / YouTube *</label>
-                    <input type="url" id="newViewLink" required placeholder="https://" class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-slate-50">
+
+                <!-- ส่วนเพิ่มใหม่: เลือกระหว่างลิงก์หรืออัปโหลดไฟล์สื่อ -->
+                <div class="bg-slate-50 p-2 rounded border border-slate-200">
+                    <label class="block font-semibold text-slate-600 mb-2">แหล่งที่มาของสื่อ *</label>
+                    <div class="flex gap-4 mb-2">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="mediaSource" value="link" checked onchange="toggleMediaSourceUI()" class="accent-brand-red text-brand-red">
+                            <span class="text-slate-700">วางลิงก์ (URL)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="mediaSource" value="file" onchange="toggleMediaSourceUI()" class="accent-brand-red text-brand-red">
+                            <span class="text-slate-700">อัปโหลดไฟล์สื่อ</span>
+                        </label>
+                    </div>
+
+                    <div id="mediaLinkSection">
+                        <input type="url" id="newViewLink" placeholder="https://" class="w-full px-2.5 py-1.5 border rounded focus:border-brand-red outline-none bg-white">
+                        <p class="text-[9px] text-slate-400 mt-1">ใส่ลิงก์ YouTube, ลิงก์ Google Drive ฯลฯ</p>
+                    </div>
+
+                    <div id="mediaFileSection" class="hidden">
+                        <div class="upload-area bg-white rounded-lg p-3 text-center cursor-pointer relative border border-dashed border-slate-300" onclick="document.getElementById('mediaFileInput').click()">
+                            <input type="file" id="mediaFileInput" accept=".pdf,video/mp4,video/webm,.jpg,.png" class="hidden" onchange="handleMediaFileSelect(event)">
+                            <div id="mediaUploadPrompt" class="flex flex-col items-center">
+                                <i data-lucide="file-up" class="w-5 h-5 text-slate-400 mb-1"></i>
+                                <span class="font-semibold text-slate-500 text-[10px]">คลิกเลือกไฟล์ (PDF, MP4 แนะนำไม่เกิน 20MB)</span>
+                            </div>
+                            <div id="mediaFilePreview" class="hidden text-brand-red font-semibold text-[10px] flex flex-col items-center">
+                                <i data-lucide="check-circle-2" class="w-4 h-4 mb-1 text-emerald-500"></i>
+                                <span id="mediaFileName" class="break-all max-w-full truncate text-slate-700"></span>
+                                <button type="button" onclick="event.stopPropagation(); removeMediaFile()" class="mt-1.5 text-rose-500 hover:underline">ลบออก / เปลี่ยนไฟล์</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
                 <div>
                     <label class="block font-semibold text-slate-600 mb-1">รูปหน้าปก (Cover) *</label>
                     <div class="upload-area bg-slate-50 rounded-lg p-3 text-center cursor-pointer relative" onclick="document.getElementById('coverFileInput').click()">
@@ -365,6 +397,9 @@
         let filterCat = "all", filterType = "all", searchQuery = "";
         let currentBook = null, currentFlipPage = 0, isAdmin = false;
         let uploadBase64 = null, uploadMime = null, uploadName = null;
+        
+        // ตัวแปรเพิ่มใหม่สำหรับไฟล์สื่อหลัก
+        let uploadMediaBase64 = null, uploadMediaMime = null, uploadMediaName = null;
 
         // Initialization
         window.addEventListener('DOMContentLoaded', () => {
@@ -582,12 +617,69 @@
             });
         }
         function removeSelectedImage() { document.getElementById('coverFileInput').value = ""; uploadBase64 = null; document.getElementById('imagePreviewContainer').classList.add('hidden'); document.getElementById('uploadPrompt').classList.remove('hidden'); }
-        function openAddMediaModal() { document.getElementById('newCategory').innerHTML = categories.map(c=>`<option value="${c}">${c}</option>`).join(''); document.getElementById('addMediaModal').classList.remove('hidden'); }
-        function closeAddMediaModal() { document.getElementById('addMediaModal').classList.add('hidden'); document.getElementById('addMediaForm').reset(); removeSelectedImage(); }
+        
+        // ฟังก์ชันใหม่: สลับหน้าจอลิงก์กับอัปโหลดไฟล์สื่อ
+        function toggleMediaSourceUI() {
+            const isLink = document.querySelector('input[name="mediaSource"]:checked').value === 'link';
+            document.getElementById('mediaLinkSection').classList.toggle('hidden', !isLink);
+            document.getElementById('mediaFileSection').classList.toggle('hidden', isLink);
+            if(isLink) document.getElementById('newViewLink').required = true;
+            else document.getElementById('newViewLink').required = false;
+        }
+
+        // ฟังก์ชันใหม่: เลือกไฟล์สื่อหลัก
+        function handleMediaFileSelect(e) {
+            const f = e.target.files[0]; if(!f) return;
+            
+            // จำกัดขนาดไฟล์เพื่อป้องกัน Timeout จาก API (20MB = 20 * 1024 * 1024 bytes)
+            if (f.size > 20971520) {
+                showToast("ไฟล์ขนาดใหญ่เกิน 20MB กรุณาใช้วิธีอัปโหลดเข้า Drive แล้วแปะลิงก์แทน", "error");
+                e.target.value = ""; return;
+            }
+
+            uploadMediaName = f.name;
+            uploadMediaMime = f.type;
+            
+            const r = new FileReader();
+            r.onload = (e) => {
+                uploadMediaBase64 = e.target.result;
+                document.getElementById('mediaFileName').innerText = uploadMediaName;
+                document.getElementById('mediaUploadPrompt').classList.add('hidden');
+                document.getElementById('mediaFilePreview').classList.remove('hidden');
+            };
+            r.readAsDataURL(f);
+        }
+
+        // ฟังก์ชันใหม่: ลบไฟล์สื่อหลักที่เลือก
+        function removeMediaFile() {
+            document.getElementById('mediaFileInput').value = "";
+            uploadMediaBase64 = null;
+            document.getElementById('mediaFilePreview').classList.add('hidden');
+            document.getElementById('mediaUploadPrompt').classList.remove('hidden');
+        }
+
+        function openAddMediaModal() { 
+            document.getElementById('newCategory').innerHTML = categories.map(c=>`<option value="${c}">${c}</option>`).join(''); 
+            document.getElementById('addMediaModal').classList.remove('hidden'); 
+        }
+        
+        function closeAddMediaModal() { 
+            document.getElementById('addMediaModal').classList.add('hidden'); 
+            document.getElementById('addMediaForm').reset(); 
+            removeSelectedImage(); 
+            removeMediaFile(); // รีเซ็ตไฟล์สื่อ
+            toggleMediaSourceUI(); // รีเซ็ต UI ให้กลับเป็น Link
+        }
 
         async function submitAddMedia(e) {
             e.preventDefault();
+            
+            const sourceType = document.querySelector('input[name="mediaSource"]:checked').value;
+            
+            // ตรวจสอบความถูกต้องของข้อมูล
             if(!uploadBase64) return showToast("กรุณาเลือกรูปหน้าปก", "error");
+            if(sourceType === 'file' && !uploadMediaBase64) return showToast("กรุณาเลือกไฟล์สื่อที่ต้องการอัปโหลด", "error");
+            if(sourceType === 'link' && !document.getElementById('newViewLink').value.trim()) return showToast("กรุณาระบุลิงก์สื่อ", "error");
             
             // แสดง Overlay ตอนรอโหลด
             document.getElementById('uploadingOverlay').classList.remove('hidden');
@@ -596,11 +688,20 @@
                 title: document.getElementById('newTitle').value.trim(), 
                 type: document.getElementById('newType').value,
                 category: document.getElementById('newCategory').value, 
-                viewLink: document.getElementById('newViewLink').value.trim(),
                 base64: uploadBase64, 
                 filename: uploadName, 
-                mimeType: uploadMime
+                mimeType: uploadMime,
+                inputType: sourceType // ส่งประเภทที่เลือกไปด้วย
             };
+
+            // ใส่ข้อมูลลิงก์ หรือ ไฟล์สื่อ
+            if (sourceType === 'link') {
+                payload.viewLink = document.getElementById('newViewLink').value.trim();
+            } else {
+                payload.mediaBase64 = uploadMediaBase64;
+                payload.mediaName = uploadMediaName;
+                payload.mediaMimeType = uploadMediaMime;
+            }
 
             const apiUrl = SCRIPT_URL;
             
