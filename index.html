@@ -228,7 +228,7 @@
                         <p class="text-xs font-semibold">กำลังโหลดหนังสือ...</p>
                         <!-- กล่องแสดงคำคมระหว่างรอโหลด -->
                         <div id="loadingQuoteContainer" class="mt-6 p-3 sm:p-4 bg-black/30 rounded-lg border border-white/10 max-w-sm w-full">
-                            <p id="loadingQuoteText" class="text-[10px] sm:text-xs text-brand-goldlight italic text-center transition-opacity duration-500 opacity-100"></p>
+                            <p id="loadingQuoteText" class="text-[30px] sm:text-xs text-brand-goldlight italic text-center transition-opacity duration-500 opacity-100"></p>
                         </div>
                     </div>
 
@@ -811,7 +811,7 @@ function startLoadingQuoteRotation() {
             el.innerText = pdfLoadingQuotes[loadingQuoteIdx];
             el.classList.remove('opacity-0'); // เฟดเข้าอันใหม่
         }, 500); // สอดคล้องกับ transition-opacity duration-500 ที่ใส่ไว้ใน element นี้แล้ว
-    }, 15000);
+    }, 7000);
 }
 
 // หยุดหมุนคำคม (เรียกทันทีที่โหลดเสร็จ ไม่ว่าจะสำเร็จหรือ fallback)
