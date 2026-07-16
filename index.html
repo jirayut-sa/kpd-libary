@@ -226,6 +226,10 @@
                     <div id="pdfLoadingState" class="hidden flex-col items-center justify-center text-white gap-3">
                         <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-brand-gold"></i>
                         <p class="text-xs font-semibold">กำลังโหลดหนังสือ...</p>
+                        <!-- กล่องแสดงคำคมระหว่างรอโหลด -->
+                        <div id="loadingQuoteContainer" class="mt-6 p-3 sm:p-4 bg-black/30 rounded-lg border border-white/10 max-w-sm w-full">
+                            <p id="loadingQuoteText" class="text-[10px] sm:text-xs text-brand-goldlight italic text-center transition-opacity duration-500 opacity-100"></p>
+                        </div>
                     </div>
 
                     <!-- ตัวแสดงผลสำรอง (กรณีโหลดไฟล์ PDF จริงไม่สำเร็จ เช่นติด CORS) -->
