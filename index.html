@@ -17,6 +17,7 @@
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Prompt', 'Sarabun', sans-serif; background-color: #f8fafc; overflow-x: hidden; }
@@ -218,44 +219,71 @@
 
             <div class="flex-grow flex flex-col items-center justify-center bg-slate-800 p-0 sm:p-4 relative overflow-hidden">
                 
-                <!-- PDF Viewer (Book Mockup แบบหนังสือพลิกได้) -->
-                <div id="pdfViewer" class="w-full h-full flex flex-col items-center justify-center hidden bg-slate-800">
-                    <div class="relative flex items-center justify-center w-full max-w-4xl flex-grow perspective-1000 px-10 sm:px-14">
-                        <button onclick="prevPage()" class="absolute left-0 sm:left-2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-left" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
-                        
-                        <div id="bookMockContainer" class="flex w-full aspect-[1.2] sm:aspect-[4/3] max-h-[75vh] bg-amber-50 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-amber-200 relative transition-transform duration-300 transform-style-3d overflow-hidden">
-                            <!-- Left Page -->
-                            <div class="w-1/2 h-full bg-white p-3 sm:p-8 flex flex-col justify-between rounded-l-lg page-shadow-left relative border-r border-slate-200">
-                                <div class="text-[8px] sm:text-[10px] text-slate-400 font-bold border-b pb-1 truncate">ร.ร.บ้านโคกประดู่</div>
-                                <div class="flex-grow flex flex-col justify-center items-center py-2 overflow-y-auto custom-scrollbar">
-                                    <img id="bookLeftCover" src="" class="max-h-24 sm:max-h-56 object-contain mb-3 sm:mb-4 shadow-md border border-slate-100 rounded transition-all">
-                                    <h4 id="bookLeftTitle" class="font-bold text-brand-red text-[10px] sm:text-base text-center line-clamp-3">หัวข้อหลัก</h4>
-                                    <p id="bookLeftDesc" class="hidden text-[8px] sm:text-xs text-slate-600 mt-3 text-center leading-relaxed px-2">นี่คือแหล่งเรียนรู้ดิจิทัลของโรงเรียนบ้านโคกประดู่ เพื่อส่งเสริมการอ่านและการเรียนรู้ด้วยตนเองของนักเรียน</p>
-                                </div>
-                                <div class="text-right text-[8px] sm:text-[10px] font-bold text-slate-400" id="leftPageNum">หน้า 1</div>
-                            </div>
-                            <!-- Right Page -->
-                            <div class="w-1/2 h-full bg-white p-3 sm:p-8 flex flex-col justify-between rounded-r-lg page-shadow-right relative">
-                                <div class="text-[8px] sm:text-[10px] text-slate-400 font-bold border-b pb-1 text-right truncate" id="bookRightCategory">หมวดหมู่</div>
-                                <div class="flex-grow flex flex-col justify-center items-center py-2 overflow-y-auto custom-scrollbar text-center px-1 sm:px-2">
-                                    <div class="w-10 h-10 sm:w-14 sm:h-14 bg-red-50 text-brand-red rounded-full flex items-center justify-center mb-2 sm:mb-4">
-                                        <i data-lucide="book-open" class="w-5 h-5 sm:w-7 sm:h-7"></i>
+                <!-- PDF Viewer (อ่าน E-Book จริงแบบพลิกหน้าด้วย pdf.js) -->
+                <div id="pdfViewer" class="w-full h-full flex flex-col items-center justify-center hidden bg-slate-800 relative">
+
+                    <!-- สถานะกำลังโหลด -->
+                    <div id="pdfLoadingState" class="hidden flex-col items-center justify-center text-white gap-3">
+                        <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-brand-gold"></i>
+                        <p class="text-xs font-semibold">กำลังโหลดหนังสือ...</p>
+                    </div>
+
+                    <!-- ตัวแสดงผลสำรอง (กรณีโหลดไฟล์ PDF จริงไม่สำเร็จ เช่นติด CORS) -->
+                    <div id="pdfFallbackViewer" class="hidden w-full h-full relative flex-col">
+                        <div class="bg-amber-500/90 text-white text-[10px] sm:text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5 shrink-0">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ไม่สามารถแสดงผลแบบพลิกหน้าได้ กำลังแสดงตัวอย่างสำรองแทน
+                        </div>
+                        <iframe id="pdfFallbackIframe" class="w-full flex-grow border-0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                    </div>
+
+                    <!-- หนังสือพลิกหน้าได้จริง -->
+                    <div id="pdfFlipbook" class="hidden flex-col items-center justify-center w-full h-full">
+                        <div class="relative flex items-center justify-center w-full max-w-4xl flex-grow perspective-1000 px-10 sm:px-14">
+                            <button onclick="flipPrev()" id="pdfPrevBtn" class="absolute left-0 sm:left-2 z-30 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-left" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
+
+                            <div id="bookMockContainer" class="flex w-full aspect-[1.2] sm:aspect-[4/3] max-h-[75vh] bg-amber-50 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-amber-200 relative transform-style-3d" style="perspective:1800px;">
+                                <!-- Left Page -->
+                                <div class="w-1/2 h-full bg-white rounded-l-lg page-shadow-left relative border-r border-slate-200 overflow-hidden flex items-center justify-center">
+                                    <canvas id="pdfCanvasLeft" class="max-w-full max-h-full"></canvas>
+                                    <div id="pdfLeftEmpty" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-300 gap-2">
+                                        <i data-lucide="book" class="w-8 h-8"></i>
+                                        <span class="text-[10px] font-bold">ปกหนังสือ</span>
                                     </div>
-                                    <h5 class="font-bold text-slate-700 text-[10px] sm:text-sm mb-1.5 sm:mb-2">เข้าสู่เนื้อหาฉบับเต็ม</h5>
-                                    <p class="text-[8px] sm:text-xs text-slate-500 leading-relaxed whitespace-pre-line mb-3 sm:mb-5">
-                                        คลิกปุ่มด้านล่างเพื่อเปิดอ่าน E-Book<br>ผ่านระบบการอ่านออนไลน์
-                                    </p>
-                                    <a id="innerExternalBtn" href="" target="_blank" class="px-3 sm:px-5 py-1.5 sm:py-2.5 bg-gradient-to-r from-brand-red to-red-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5">
-                                        <i data-lucide="external-link" class="w-3 h-3 sm:w-4 sm:h-4 inline mb-0.5"></i> เปิดอ่านหนังสือ
-                                    </a>
                                 </div>
-                                <div class="text-left text-[8px] sm:text-[10px] font-bold text-slate-400" id="rightPageNum">หน้า 2</div>
+                                <!-- Right Page -->
+                                <div class="w-1/2 h-full bg-white rounded-r-lg page-shadow-right relative overflow-hidden flex items-center justify-center">
+                                    <canvas id="pdfCanvasRight" class="max-w-full max-h-full"></canvas>
+                                    <div id="pdfRightEmpty" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-300 gap-2">
+                                        <i data-lucide="check-circle" class="w-8 h-8"></i>
+                                        <span class="text-[10px] font-bold">จบเล่ม</span>
+                                    </div>
+                                </div>
+
+                                <!-- แผ่นหน้ากระดาษที่กำลังพลิก (Flip Leaf) -->
+                                <div id="pdfFlipLeaf" class="hidden absolute top-0 right-0 w-1/2 h-full" style="transform-style:preserve-3d; transform-origin:0% 50%;">
+                                    <div class="absolute inset-0 bg-white rounded-r-lg shadow-[2px_0_12px_rgba(0,0,0,0.2)] flex items-center justify-center overflow-hidden" style="backface-visibility:hidden;">
+                                        <canvas id="pdfLeafFrontCanvas" class="max-w-full max-h-full"></canvas>
+                                    </div>
+                                    <div class="absolute inset-0 bg-white rounded-l-lg shadow-[-2px_0_12px_rgba(0,0,0,0.2)] flex items-center justify-center overflow-hidden" style="backface-visibility:hidden; transform: rotateY(180deg);">
+                                        <canvas id="pdfLeafBackCanvas" class="max-w-full max-h-full"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Book Center Fold -->
+                                <div class="absolute inset-y-0 left-1/2 -ml-[1px] w-[2px] bg-gradient-to-r from-slate-300 to-transparent pointer-events-none z-20"></div>
                             </div>
-                            <!-- Book Center Fold -->
-                            <div class="absolute inset-y-0 left-1/2 -ml-[1px] w-[2px] bg-gradient-to-r from-slate-300 to-transparent pointer-events-none"></div>
+
+                            <button onclick="flipNext()" id="pdfNextBtn" class="absolute right-0 sm:right-2 z-30 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-right" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
                         </div>
 
-                        <button onclick="nextPage()" class="absolute right-0 sm:right-2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/50 text-white hover:bg-brand-red flex items-center justify-center transition-transform hover:scale-110 shadow-lg border border-white/10"><i data-lucide="chevron-right" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
+                        <!-- แถบควบคุมหน้า -->
+                        <div class="flex items-center gap-3 py-2 sm:py-3 text-white/85 shrink-0">
+                            <span id="pdfPageIndicator" class="text-[10px] sm:text-xs font-semibold">หน้า 1-2 จาก -</span>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="pdfJumpInput" min="1" class="w-12 px-1.5 py-1 rounded bg-white/10 border border-white/20 text-center text-white outline-none focus:border-brand-gold text-[10px] sm:text-xs" placeholder="หน้า">
+                                <button onclick="jumpToPage()" class="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-[9px] sm:text-[10px] font-bold border border-white/20">ไปหน้า</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -688,10 +716,7 @@
 
             if(currentBook.type === 'PDF') { 
                 document.getElementById('pdfViewer').classList.remove('hidden');
-                currentFlipPage = 0;
-                updateFlipUI();
-                document.getElementById('bookRightCategory').innerText = currentBook.category;
-                document.getElementById('innerExternalBtn').href = currentBook.drive_view_link;
+                openPdfBook(currentBook);
             } else if(currentBook.type === 'Video') { 
                 document.getElementById('iframeViewer').classList.remove('hidden'); 
                 document.getElementById('mediaIframe').src = getEmbedUrl(currentBook.drive_view_link); 
@@ -703,45 +728,204 @@
             document.getElementById('viewerModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
         }
 
-        // ฟังก์ชันพลิกหน้า E-Book
-        function prevPage() { 
-            currentFlipPage = (currentFlipPage === 0) ? 1 : 0;
-            flipAnimation('left');
+        // ============================================================
+        // ระบบอ่าน E-Book (PDF) จริงแบบพลิกหน้า โดยใช้ pdf.js
+        // ============================================================
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
         }
-        function nextPage() { 
-            currentFlipPage = (currentFlipPage === 1) ? 0 : 1;
-            flipAnimation('right');
+
+        let pdfDoc = null, pdfTotalPages = 0, pdfSpreadIdx = 1, pdfTotalSpreads = 0, pdfBusyFlip = false;
+
+        // แปลงลิงก์ Google Drive ให้เป็นลิงก์ดาวน์โหลดตรงสำหรับ pdf.js
+        function getDirectPdfUrl(link) {
+            if(!link) return link;
+            try {
+                if (link.includes('drive.google.com')) {
+                    const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                    if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+                }
+            } catch(e) { console.error(e); }
+            return link;
         }
-        function flipAnimation(dir) {
-            const container = document.getElementById('bookMockContainer');
-            container.style.transform = dir === 'right' ? 'rotateY(-8deg) scale(0.98)' : 'rotateY(8deg) scale(0.98)'; 
-            const sound = document.getElementById('pageFlipSound');
-            if(sound) { sound.currentTime = 0; sound.play().catch(()=>{}); }
-            
-            setTimeout(() => { 
-                container.style.transform = 'rotateY(0deg) scale(1)'; 
-                updateFlipUI(); 
-            }, 200);
-        }
-        function updateFlipUI() {
-            if(!currentBook) return;
-            if(currentFlipPage === 0) {
-                document.getElementById('leftPageNum').innerText = "หน้า 1";
-                document.getElementById('rightPageNum').innerText = "หน้า 2";
-                document.getElementById('bookLeftTitle').innerText = currentBook.title;
-                document.getElementById('bookLeftCover').src = currentBook.cover_url;
-                document.getElementById('bookLeftCover').classList.remove('hidden');
-                document.getElementById('bookLeftDesc').classList.add('hidden');
-            } else {
-                document.getElementById('leftPageNum').innerText = "หน้า 3";
-                document.getElementById('rightPageNum').innerText = "หน้า 4";
-                document.getElementById('bookLeftTitle').innerText = "เกร็ดความรู้ / รายละเอียด";
-                document.getElementById('bookLeftCover').classList.add('hidden');
-                document.getElementById('bookLeftDesc').classList.remove('hidden');
+
+        async function openPdfBook(book) {
+            pdfDoc = null; pdfTotalPages = 0; pdfSpreadIdx = 1; pdfBusyFlip = false;
+            const loadingEl = document.getElementById('pdfLoadingState');
+            const flipbookEl = document.getElementById('pdfFlipbook');
+            const fallbackEl = document.getElementById('pdfFallbackViewer');
+
+            flipbookEl.classList.add('hidden'); flipbookEl.classList.remove('flex');
+            fallbackEl.classList.add('hidden'); fallbackEl.classList.remove('flex');
+            loadingEl.classList.remove('hidden'); loadingEl.classList.add('flex');
+
+            if (!window.pdfjsLib) { showPdfFallback(book); return; }
+
+            try {
+                const url = getDirectPdfUrl(book.drive_view_link);
+                const loadingTask = pdfjsLib.getDocument({ url });
+                pdfDoc = await loadingTask.promise;
+                pdfTotalPages = pdfDoc.numPages;
+                pdfTotalSpreads = Math.max(1, Math.ceil(pdfTotalPages / 2));
+
+                loadingEl.classList.add('hidden'); loadingEl.classList.remove('flex');
+                flipbookEl.classList.remove('hidden'); flipbookEl.classList.add('flex');
+                await showSpread(1);
+            } catch (err) {
+                console.error("โหลดไฟล์ PDF สำหรับพลิกอ่านไม่สำเร็จ:", err);
+                showPdfFallback(book);
             }
         }
 
-        function closeViewer() { if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); document.getElementById('viewerModal').classList.add('hidden'); document.getElementById('mediaIframe').src = ""; document.body.style.overflow = ''; }
+        function showPdfFallback(book) {
+            document.getElementById('pdfLoadingState').classList.add('hidden');
+            document.getElementById('pdfLoadingState').classList.remove('flex');
+            const fallbackEl = document.getElementById('pdfFallbackViewer');
+            fallbackEl.classList.remove('hidden'); fallbackEl.classList.add('flex');
+            document.getElementById('pdfFallbackIframe').src = getEmbedUrl(book.drive_view_link);
+            showToast("ไม่สามารถแสดงผลแบบพลิกหน้าได้ กำลังแสดงตัวอย่างสำรอง", "info");
+        }
+
+        // เรนเดอร์หน้า PDF หมายเลข pageNum ลงบน canvas ที่กำหนด คืนค่า true ถ้ามีหน้านั้นจริง
+        async function renderPageToCanvas(pageNum, canvas) {
+            if(!canvas) return false;
+            const ctx = canvas.getContext('2d');
+            if (!pdfDoc || pageNum < 1 || pageNum > pdfTotalPages) { ctx.clearRect(0,0,canvas.width,canvas.height); return false; }
+            try {
+                const page = await pdfDoc.getPage(pageNum);
+                const parent = canvas.parentElement;
+                const cw = parent.clientWidth || 400, ch = parent.clientHeight || 500;
+                const base = page.getViewport({ scale: 1 });
+                const dpr = window.devicePixelRatio || 1;
+                const scale = Math.max(0.1, Math.min(cw / base.width, ch / base.height)) * dpr;
+                const viewport = page.getViewport({ scale });
+                canvas.width = viewport.width; canvas.height = viewport.height;
+                canvas.style.width = (viewport.width / dpr) + 'px';
+                canvas.style.height = (viewport.height / dpr) + 'px';
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                return true;
+            } catch(e) { console.error("เรนเดอร์หน้า PDF ไม่สำเร็จ", e); return false; }
+        }
+
+        // แสดงคู่หน้า (spread) ตามลำดับที่กำหนดแบบไม่มีแอนิเมชัน (ใช้ตอนเปิดเล่ม/กระโดดหน้า)
+        async function showSpread(idx) {
+            pdfSpreadIdx = Math.min(Math.max(idx, 1), pdfTotalSpreads);
+            const leftNum = pdfSpreadIdx*2 - 1, rightNum = pdfSpreadIdx*2;
+            const leftCanvas = document.getElementById('pdfCanvasLeft'), rightCanvas = document.getElementById('pdfCanvasRight');
+            const leftEmpty = document.getElementById('pdfLeftEmpty'), rightEmpty = document.getElementById('pdfRightEmpty');
+
+            const hasLeft = await renderPageToCanvas(leftNum, leftCanvas);
+            leftCanvas.classList.toggle('hidden', !hasLeft); leftEmpty.classList.toggle('hidden', hasLeft);
+
+            const hasRight = await renderPageToCanvas(rightNum, rightCanvas);
+            rightCanvas.classList.toggle('hidden', !hasRight); rightEmpty.classList.toggle('hidden', hasRight);
+
+            updatePdfControls();
+        }
+
+        function updatePdfControls() {
+            const leftNum = pdfSpreadIdx*2 - 1, rightNum = Math.min(pdfSpreadIdx*2, pdfTotalPages);
+            document.getElementById('pdfPageIndicator').innerText = `หน้า ${leftNum}-${rightNum} จาก ${pdfTotalPages}`;
+            document.getElementById('pdfPrevBtn').disabled = pdfSpreadIdx <= 1 || pdfBusyFlip;
+            document.getElementById('pdfNextBtn').disabled = pdfSpreadIdx >= pdfTotalSpreads || pdfBusyFlip;
+        }
+
+        // พลิกไปหน้าถัดไป พร้อมเอฟเฟกต์พลิกกระดาษจริง (หมุนรอบสันหนังสือ)
+        async function flipNext() {
+            if (pdfBusyFlip || pdfSpreadIdx >= pdfTotalSpreads) return;
+            pdfBusyFlip = true; updatePdfControls();
+
+            const frontNum = pdfSpreadIdx*2, backNum = pdfSpreadIdx*2 + 1, newRightNum = pdfSpreadIdx*2 + 2;
+            const rightCanvas = document.getElementById('pdfCanvasRight'), rightEmpty = document.getElementById('pdfRightEmpty');
+
+            // เตรียมหน้าใหม่ที่จะปรากฏใต้แผ่นที่กำลังพลิก
+            const hasNewRight = await renderPageToCanvas(newRightNum, rightCanvas);
+            rightCanvas.classList.toggle('hidden', !hasNewRight); rightEmpty.classList.toggle('hidden', hasNewRight);
+
+            await renderPageToCanvas(frontNum, document.getElementById('pdfLeafFrontCanvas'));
+            await renderPageToCanvas(backNum, document.getElementById('pdfLeafBackCanvas'));
+
+            const leaf = document.getElementById('pdfFlipLeaf');
+            leaf.style.transition = 'none'; leaf.style.transform = 'rotateY(0deg)';
+            leaf.classList.remove('hidden');
+            const sound = document.getElementById('pageFlipSound'); if(sound){ sound.currentTime = 0; sound.play().catch(()=>{}); }
+
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                leaf.style.transition = 'transform 0.7s cubic-bezier(0.45,0.05,0.55,0.95)';
+                leaf.style.transform = 'rotateY(-180deg)';
+            }));
+
+            leaf.addEventListener('transitionend', async function handler() {
+                leaf.removeEventListener('transitionend', handler);
+                leaf.classList.add('hidden');
+                pdfSpreadIdx += 1;
+                const leftCanvas = document.getElementById('pdfCanvasLeft'), leftEmpty = document.getElementById('pdfLeftEmpty');
+                const hasLeft = await renderPageToCanvas(backNum, leftCanvas);
+                leftCanvas.classList.toggle('hidden', !hasLeft); leftEmpty.classList.toggle('hidden', hasLeft);
+                pdfBusyFlip = false; updatePdfControls();
+            }, { once: true });
+        }
+
+        // พลิกกลับไปหน้าก่อนหน้า พร้อมเอฟเฟกต์พลิกกระดาษจริง
+        async function flipPrev() {
+            if (pdfBusyFlip || pdfSpreadIdx <= 1) return;
+            pdfBusyFlip = true; updatePdfControls();
+
+            const frontNum = pdfSpreadIdx*2 - 2, backNum = pdfSpreadIdx*2 - 1, newLeftNum = pdfSpreadIdx*2 - 3;
+            const leftCanvas = document.getElementById('pdfCanvasLeft'), leftEmpty = document.getElementById('pdfLeftEmpty');
+
+            // เตรียมหน้าใหม่ที่จะปรากฏใต้แผ่นที่กำลังพลิกกลับ
+            const hasNewLeft = await renderPageToCanvas(newLeftNum, leftCanvas);
+            leftCanvas.classList.toggle('hidden', !hasNewLeft); leftEmpty.classList.toggle('hidden', hasNewLeft);
+
+            await renderPageToCanvas(frontNum, document.getElementById('pdfLeafFrontCanvas'));
+            await renderPageToCanvas(backNum, document.getElementById('pdfLeafBackCanvas'));
+
+            const leaf = document.getElementById('pdfFlipLeaf');
+            leaf.style.transition = 'none'; leaf.style.transform = 'rotateY(-180deg)';
+            leaf.classList.remove('hidden');
+            const sound = document.getElementById('pageFlipSound'); if(sound){ sound.currentTime = 0; sound.play().catch(()=>{}); }
+
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                leaf.style.transition = 'transform 0.7s cubic-bezier(0.45,0.05,0.55,0.95)';
+                leaf.style.transform = 'rotateY(0deg)';
+            }));
+
+            leaf.addEventListener('transitionend', async function handler() {
+                leaf.removeEventListener('transitionend', handler);
+                leaf.classList.add('hidden');
+                pdfSpreadIdx -= 1;
+                const rightCanvas = document.getElementById('pdfCanvasRight'), rightEmpty = document.getElementById('pdfRightEmpty');
+                const hasRight = await renderPageToCanvas(frontNum, rightCanvas);
+                rightCanvas.classList.toggle('hidden', !hasRight); rightEmpty.classList.toggle('hidden', hasRight);
+                pdfBusyFlip = false; updatePdfControls();
+            }, { once: true });
+        }
+
+        // กระโดดไปยังหมายเลขหน้าที่ต้องการโดยตรง
+        function jumpToPage() {
+            if (!pdfDoc) return;
+            const val = parseInt(document.getElementById('pdfJumpInput').value);
+            if(!val || val < 1 || val > pdfTotalPages) return showToast("หมายเลขหน้าไม่ถูกต้อง", "error");
+            showSpread(Math.ceil(val / 2));
+        }
+
+        // ควบคุมด้วยปุ่มลูกศรบนคีย์บอร์ดขณะเปิดอ่าน PDF
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('viewerModal').classList.contains('hidden')) return;
+            if (!currentBook || currentBook.type !== 'PDF') return;
+            if (e.key === 'ArrowRight') flipNext();
+            if (e.key === 'ArrowLeft') flipPrev();
+        });
+
+        function closeViewer() { 
+            if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); 
+            document.getElementById('viewerModal').classList.add('hidden'); 
+            document.getElementById('mediaIframe').src = ""; 
+            document.getElementById('pdfFallbackIframe').src = "";
+            if (pdfDoc) { try { pdfDoc.destroy(); } catch(e){} pdfDoc = null; }
+            document.body.style.overflow = ''; 
+        }
         function toggleFullscreen() { const v = document.getElementById('modalViewerContent'); if(!document.fullscreenElement) v.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }
         document.addEventListener('fullscreenchange', () => { const ic = document.getElementById('fullscreenIcon'); if(ic) { ic.setAttribute('data-lucide', document.fullscreenElement ? 'minimize-2' : 'maximize-2'); lucide.createIcons(); } });
 
