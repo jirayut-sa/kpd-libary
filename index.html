@@ -449,6 +449,7 @@
         let books = [], categories = [], filteredBooks = [];
         let filterCat = "all", filterType = "all", searchQuery = "";
         let currentBook = null, isAdmin = false, currentFlipPage = 0;
+        let totalSiteVisits = 0;
         
         // ตัวแปรสำหรับฝั่งอัปโหลด
         let uploadBase64 = null, uploadMime = null, uploadName = null;
@@ -468,7 +469,26 @@
                 document.getElementById('authBtnMobile').className = "lg:hidden flex items-center justify-center px-3 py-2 text-[10px] font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-lg shadow-md shrink-0";
             }
             fetchFromGoogleSheet(SCRIPT_URL);
+            registerSiteVisit();
         });
+
+        // นับสถิติ "การใช้งานรวม" ทุกครั้งที่มีการเปิดเว็บไซต์ และบันทึกสะสมไว้ใน Google Sheet
+        async function registerSiteVisit() {
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'incrementSiteVisit' }) });
+                const result = await res.json();
+                if (!result || result.status !== 'success' || typeof result.totalVisits === 'undefined') throw new Error(result && result.message || 'invalid response');
+                totalSiteVisits = parseInt(result.totalVisits) || 0;
+                localStorage.setItem('kp_site_visits', totalSiteVisits); // เก็บสำรองไว้ในเครื่องด้วย
+            } catch (err) {
+                console.log("บันทึกสถิติการเข้าชมลง Sheet ไม่สำเร็จ ใช้ตัวนับสำรองในเครื่องแทน:", err);
+                if (isAdmin) showToast("ซิงก์สถิติเข้าเว็บกับ Sheet ไม่สำเร็จ: " + (err && err.message ? err.message : err), "error");
+                totalSiteVisits = (parseInt(localStorage.getItem('kp_site_visits')) || 0) + 1;
+                localStorage.setItem('kp_site_visits', totalSiteVisits);
+            } finally {
+                document.getElementById('headerTotalViews').innerText = totalSiteVisits.toLocaleString();
+            }
+        }
 
         async function fetchFromGoogleSheet(url) {
             document.getElementById('mainLoader').classList.remove('hidden');
@@ -575,7 +595,6 @@
             
             const totalViews = books.reduce((sum, b) => sum + (b.views || 0), 0);
             document.getElementById('totalViewsStat').innerText = totalViews.toLocaleString();
-            document.getElementById('headerTotalViews').innerText = totalViews.toLocaleString(); // อัปเดตสถิติด้านบน
 
             const topBooks = [...books].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
             document.getElementById('topBooksChart').innerHTML = topBooks.map((book, idx) => {
@@ -686,6 +705,22 @@
             }
         }
 
+        // บันทึกยอดเปิดอ่านสื่อ (สะสมต่อเนื่อง) ลง Google Sheet แล้วซิงก์ค่าจริงกลับมาแสดงผล
+        async function syncBookViewToSheet(id) {
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'incrementView', id }) });
+                const result = await res.json();
+                if (!result || result.status !== 'success' || typeof result.views === 'undefined') throw new Error(result && result.message || 'invalid response');
+                const b = books.find(x => x.id === id);
+                if (b) { b.views = parseInt(result.views) || b.views; renderBooks(); }
+                localStorage.setItem('kp_books', JSON.stringify(books));
+            } catch (err) {
+                console.log("บันทึกยอดเปิดอ่านลง Sheet ไม่สำเร็จ เก็บไว้ในเครื่องชั่วคราวก่อน:", err);
+                if (isAdmin) showToast("ซิงก์ยอดเปิดอ่านกับ Sheet ไม่สำเร็จ: " + (err && err.message ? err.message : err), "error");
+                localStorage.setItem('kp_books', JSON.stringify(books));
+            }
+        }
+
         // --- ระบบแปลงลิงก์อัตโนมัติ (Embed Converter) ---
         function getEmbedUrl(url) {
             if(!url) return "";
@@ -705,7 +740,8 @@
         // --- ระบบเปิดดูสื่อ (Viewer) ---
         function openViewer(id) {
             currentBook = books.find(b=>b.id === id); if(!currentBook) return;
-            currentBook.views = (currentBook.views||0) + 1; localStorage.setItem('kp_books', JSON.stringify(books)); renderBooks();
+            currentBook.views = (currentBook.views||0) + 1; renderBooks(); // อัปเดตหน้าจอทันที (optimistic)
+            syncBookViewToSheet(id); // บันทึกยอดเปิดอ่านสะสมลง Google Sheet เบื้องหลัง
             
             document.getElementById('modalTitle').innerText = currentBook.title; document.getElementById('modalTypeBadge').innerText = currentBook.type;
             document.getElementById('externalBtn').href = currentBook.drive_view_link;
