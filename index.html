@@ -450,6 +450,22 @@
         const catIcons = { "นิทาน & วรรณกรรม": "sparkles", "วิทยาศาสตร์": "beaker", "พละศึกษา": "activity", "สังคมศึกษา": "globe", "คณิตศาสตร์": "calculator", "ภาษาไทย": "pencil" };
         const motivationalQuotes = ["การอ่านคือรากฐานของความสำเร็จในอนาคต", "หนังสือหนึ่งเล่ม เปิดโลกกว้างให้เราได้เสมอ", "เรียนรู้ในวันนี้ เพื่อชีวิตที่ดีในวันหน้า"];
 
+        // คำคม/แนวคิดส่งเสริมการอ่าน ใช้แสดงระหว่างรอโหลดไฟล์ PDF (สลับทุก 15 วิ)
+        const pdfLoadingQuotes = [
+                                    "การอ่านคือรากฐานของความสำเร็จในอนาคต",
+                                    "หนังสือหนึ่งเล่ม เปิดโลกกว้างให้เราได้เสมอ",
+                                     "เรียนรู้ในวันนี้ เพื่อชีวิตที่ดีในวันหน้า",
+                                      "ยิ่งอ่านมาก ยิ่งรู้มาก ยิ่งไปได้ไกล",
+                                      "การอ่านคือการเดินทางที่ไม่ต้องขยับเท้า",
+                                      "หนังสือคือเพื่อนที่ไม่เคยทรยศเรา",
+                                      "อ่านวันละนิด ความคิดงอกงามวันละนิด",
+                                      "ทุกหน้าที่อ่าน คือก้าวหนึ่งที่เราเติบโตขึ้น",
+                                      "จินตนาการเริ่มต้นจากตัวหนังสือบรรทัดแรก",
+                                    "ผู้ที่รักการอ่าน จะไม่มีวันรู้สึกเหงา",
+                                    "ความรู้ที่ได้จากการอ่าน ไม่มีวันถูกใครแย่งไป",
+                                    "เด็กที่อ่านหนังสือ คือผู้ใหญ่ที่จะคิดเป็น"
+                                ];
+
         let books = [], categories = [], filteredBooks = [];
         let filterCat = "all", filterType = "all", searchQuery = "";
         let currentBook = null, isAdmin = false, currentFlipPage = 0;
@@ -776,6 +792,32 @@
         }
 
         let pdfDoc = null, pdfTotalPages = 0, pdfSpreadIdx = 1, pdfTotalSpreads = 0, pdfBusyFlip = false;
+let loadingQuoteInterval = null, loadingQuoteIdx = -1;
+
+// เริ่มหมุนคำคมระหว่างรอโหลด PDF (แสดงทีละอัน 15 วิ แล้วเฟดสลับไปอันถัดไปเรื่อยๆ)
+function startLoadingQuoteRotation() {
+    stopLoadingQuoteRotation();
+    const el = document.getElementById('loadingQuoteText');
+    if (!el || pdfLoadingQuotes.length === 0) return;
+
+    loadingQuoteIdx = Math.floor(Math.random() * pdfLoadingQuotes.length);
+    el.innerText = pdfLoadingQuotes[loadingQuoteIdx];
+    el.classList.remove('opacity-0');
+
+    loadingQuoteInterval = setInterval(() => {
+        el.classList.add('opacity-0'); // เฟดออก
+        setTimeout(() => {
+            loadingQuoteIdx = (loadingQuoteIdx + 1) % pdfLoadingQuotes.length;
+            el.innerText = pdfLoadingQuotes[loadingQuoteIdx];
+            el.classList.remove('opacity-0'); // เฟดเข้าอันใหม่
+        }, 500); // สอดคล้องกับ transition-opacity duration-500 ที่ใส่ไว้ใน element นี้แล้ว
+    }, 15000);
+}
+
+// หยุดหมุนคำคม (เรียกทันทีที่โหลดเสร็จ ไม่ว่าจะสำเร็จหรือ fallback)
+function stopLoadingQuoteRotation() {
+    if (loadingQuoteInterval) { clearInterval(loadingQuoteInterval); loadingQuoteInterval = null; }
+}
 
         // แปลง base64 string ธรรมดา ให้เป็น Uint8Array สำหรับป้อนให้ pdf.js อ่านโดยตรง (ไม่ต้องใช้ data URL)
         function base64ToUint8Array(base64) {
@@ -807,6 +849,7 @@
             flipbookEl.classList.add('hidden'); flipbookEl.classList.remove('flex');
             fallbackEl.classList.add('hidden'); fallbackEl.classList.remove('flex');
             loadingEl.classList.remove('hidden'); loadingEl.classList.add('flex');
+            startLoadingQuoteRotation(); // เริ่มหมุนคำคมทันทีที่เข้าสู่สถานะกำลังโหลด
 
             if (!window.pdfjsLib) { showPdfFallback(book); return; }
 
@@ -821,6 +864,7 @@
                 pdfTotalPages = pdfDoc.numPages;
                 pdfTotalSpreads = Math.max(1, Math.ceil(pdfTotalPages / 2));
 
+                stopLoadingQuoteRotation(); // โหลดเสร็จแล้ว หยุดหมุนคำคม
                 loadingEl.classList.add('hidden'); loadingEl.classList.remove('flex');
                 flipbookEl.classList.remove('hidden'); flipbookEl.classList.add('flex');
                 await showSpread(1); // ระบบเรนเดอร์/พลิกหน้าเดิมทั้งหมด ทำงานเหมือนเดิมทุกประการ
@@ -831,6 +875,7 @@
         }
 
         function showPdfFallback(book, reasonMsg) {
+            stopLoadingQuoteRotation(); // สลับไป fallback แล้ว ก็หยุดหมุนคำคมเช่นกัน
             document.getElementById('pdfLoadingState').classList.add('hidden');
             document.getElementById('pdfLoadingState').classList.remove('flex');
             const fallbackEl = document.getElementById('pdfFallbackViewer');
