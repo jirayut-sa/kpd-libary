@@ -773,16 +773,25 @@
 
         let pdfDoc = null, pdfTotalPages = 0, pdfSpreadIdx = 1, pdfTotalSpreads = 0, pdfBusyFlip = false;
 
-        // แปลงลิงก์ Google Drive ให้เป็นลิงก์ดาวน์โหลดตรงสำหรับ pdf.js
-        function getDirectPdfUrl(link) {
-            if(!link) return link;
-            try {
-                if (link.includes('drive.google.com')) {
-                    const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-                    if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
-                }
-            } catch(e) { console.error(e); }
-            return link;
+        // แปลง base64 string ธรรมดา ให้เป็น Uint8Array สำหรับป้อนให้ pdf.js อ่านโดยตรง (ไม่ต้องใช้ data URL)
+        function base64ToUint8Array(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+        }
+
+        // ดึงไฟล์ PDF จริงผ่าน Google Apps Script (ตัวกลาง/Proxy) มาเป็น Base64
+        // วิธีนี้เลี่ยงปัญหา CORS ของ Google Drive ได้เด็ดขาด เพราะไฟล์ถูกดึงฝั่งเซิร์ฟเวอร์ ไม่ใช่ฝั่งเบราว์เซอร์
+        async function fetchPdfBase64ViaProxy(book) {
+            const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getPdfBase64', id: book.id }) });
+            const result = await res.json();
+            if (!result || result.status !== 'success' || !result.base64) {
+                const err = new Error(result && result.message ? result.message : 'ไม่สามารถดึงไฟล์ PDF ผ่านตัวกลางได้');
+                err.tooLarge = !!(result && result.tooLarge);
+                throw err;
+            }
+            return result;
         }
 
         async function openPdfBook(book) {
@@ -798,28 +807,32 @@
             if (!window.pdfjsLib) { showPdfFallback(book); return; }
 
             try {
-                const url = getDirectPdfUrl(book.drive_view_link);
-                const loadingTask = pdfjsLib.getDocument({ url });
+                // ขั้นที่ 1: ดึงไฟล์จริงผ่านตัวกลาง (Apps Script Proxy) มาเป็น Base64
+                const proxyResult = await fetchPdfBase64ViaProxy(book);
+                const bytes = base64ToUint8Array(proxyResult.base64);
+
+                // ขั้นที่ 2: ให้ pdf.js อ่านข้อมูลไบต์ที่ได้มาโดยตรง (ไม่ต้อง fetch จาก URL ภายนอกอีก จึงไม่ติด CORS)
+                const loadingTask = pdfjsLib.getDocument({ data: bytes });
                 pdfDoc = await loadingTask.promise;
                 pdfTotalPages = pdfDoc.numPages;
                 pdfTotalSpreads = Math.max(1, Math.ceil(pdfTotalPages / 2));
 
                 loadingEl.classList.add('hidden'); loadingEl.classList.remove('flex');
                 flipbookEl.classList.remove('hidden'); flipbookEl.classList.add('flex');
-                await showSpread(1);
+                await showSpread(1); // ระบบเรนเดอร์/พลิกหน้าเดิมทั้งหมด ทำงานเหมือนเดิมทุกประการ
             } catch (err) {
-                console.error("โหลดไฟล์ PDF สำหรับพลิกอ่านไม่สำเร็จ:", err);
-                showPdfFallback(book);
+                console.error("โหลด PDF ผ่านตัวกลาง (Proxy) ไม่สำเร็จ, สลับไปแสดงผลสำรอง:", err);
+                showPdfFallback(book, err && err.tooLarge ? "ไฟล์มีขนาดใหญ่เกิน 10MB จึงแสดงผลผ่านตัวอย่างมาตรฐานแทน" : null);
             }
         }
 
-        function showPdfFallback(book) {
+        function showPdfFallback(book, reasonMsg) {
             document.getElementById('pdfLoadingState').classList.add('hidden');
             document.getElementById('pdfLoadingState').classList.remove('flex');
             const fallbackEl = document.getElementById('pdfFallbackViewer');
             fallbackEl.classList.remove('hidden'); fallbackEl.classList.add('flex');
             document.getElementById('pdfFallbackIframe').src = getEmbedUrl(book.drive_view_link);
-            showToast("ไม่สามารถแสดงผลแบบพลิกหน้าได้ กำลังแสดงตัวอย่างสำรอง", "info");
+            showToast(reasonMsg || "ไม่สามารถแสดงผลแบบพลิกหน้าได้ กำลังแสดงตัวอย่างสำรอง", "info");
         }
 
         // เรนเดอร์หน้า PDF หมายเลข pageNum ลงบน canvas ที่กำหนด คืนค่า true ถ้ามีหน้านั้นจริง
