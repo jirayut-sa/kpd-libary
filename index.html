@@ -59,7 +59,6 @@
                     </div>
                 </div>
                 
-                <!-- Updated Mobile Login Button: More prominent -->
                 <button id="authBtnMobile" onclick="handleAuthAction()" class="lg:hidden flex items-center justify-center px-3 py-2 text-[10px] sm:text-xs font-bold text-white bg-gradient-to-r from-brand-red to-red-800 hover:from-red-800 hover:to-brand-red border border-red-900 rounded-lg transition-all shadow-md active:scale-95 shrink-0">
                     <i data-lucide="shield" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                     <span id="authBtnTextMobile" class="ml-1.5 whitespace-nowrap">เข้าระบบครู</span>
@@ -82,7 +81,6 @@
                     </button>
                 </div>
 
-                <!-- Updated Desktop Login Button: More prominent -->
                 <button id="authBtnDesktop" onclick="handleAuthAction()" class="hidden lg:flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-brand-red to-red-800 hover:from-red-800 hover:to-brand-red border border-red-900 rounded-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 shrink-0">
                     <i data-lucide="shield" class="w-4 h-4"></i>
                     <span id="authBtnTextDesktop">เข้าสู่ระบบครู</span>
@@ -278,7 +276,7 @@
             
             <div id="uploadingOverlay" class="hidden absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm">
                 <i data-lucide="loader-2" class="w-8 h-8 text-brand-red animate-spin mb-2"></i>
-                <p class="font-bold text-slate-700 text-xs">กำลังเชื่อมต่อฐานข้อมูล...</p>
+                <p class="font-bold text-slate-700 text-xs">กำลังอัปโหลดรูปภาพและเชื่อมต่อฐานข้อมูล...</p>
             </div>
 
             <form id="addMediaForm" onsubmit="submitAddMedia(event)" class="space-y-3 text-[10px] sm:text-xs overflow-y-auto custom-scrollbar pr-1 flex-grow">
@@ -308,7 +306,7 @@
                         <input type="file" id="coverFileInput" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
                         <div id="uploadPrompt" class="flex flex-col items-center">
                             <i data-lucide="image-plus" class="w-5 h-5 text-slate-400 mb-1"></i>
-                            <span class="font-semibold text-slate-500 text-[10px]">คลิกเลือกภาพหน้าปก (ไม่เกิน 2MB)</span>
+                            <span class="font-semibold text-slate-500 text-[10px]">คลิกเลือกภาพหน้าปก (ระบบจะบีบอัดอัตโนมัติ)</span>
                         </div>
                         <div id="imagePreviewContainer" class="hidden relative h-20 flex items-center justify-center bg-black/5 rounded">
                             <img id="coverPreviewImg" src="" class="max-h-full object-contain rounded shadow-sm">
@@ -349,6 +347,7 @@
     <audio id="pageFlipSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav" preload="auto"></audio>
 
     <script>
+        // ใส่ SCRIPT_URL ที่ได้จากการ Deploy Apps Script ลงไปที่ตัวแปรด้านล่างนี้
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwluX29-aEFlsNv_AE1WZb5oDY6fZ5BsHxbdORMy6HFMMXXi52zyn1fIZYo8GWsfQ3Tzg/exec";
 
         // Data Store (Fallback Mock Data)
@@ -414,6 +413,7 @@
                         type: item.Type || "PDF",
                         category: item.Category || "ทั่วไป",
                         drive_view_link: item.Drive_View_Link || "#",
+                        // ตรงนี้จะดึงลิงก์ปกจาก Google Sheet ที่ Apps Script จัดการเอาไว้
                         cover_url: item.Cover_URL || "https://ui-avatars.com/api/?name=Book&background=f1f5f9",
                         upload_date: item.Upload_Date || "N/A",
                         views: parseInt(item.Views) || 0
@@ -566,9 +566,10 @@
             const r = new FileReader(); r.onload = (e) => {
                 const img = new Image(); img.onload = () => {
                     const canvas = document.createElement('canvas'); let w = img.width, h = img.height;
+                    // บีบอัดขนาดไฟล์ก่อนส่งไปยัง Google Drive เพื่อไม่ให้การอัปโหลดใช้เวลานานไป
                     if(w>h && w>600){h*=600/w;w=600;} else if(h>800){w*=800/h;h=800;}
                     canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    callback(canvas.toDataURL('image/jpeg', 0.8));
+                    callback(canvas.toDataURL('image/jpeg', 0.7)); // Quality 70%
                 }; img.src = e.target.result;
             }; r.readAsDataURL(file);
         }
@@ -587,12 +588,18 @@
         async function submitAddMedia(e) {
             e.preventDefault();
             if(!uploadBase64) return showToast("กรุณาเลือกรูปหน้าปก", "error");
+            
+            // แสดง Overlay ตอนรอโหลด
             document.getElementById('uploadingOverlay').classList.remove('hidden');
 
             const payload = {
-                title: document.getElementById('newTitle').value.trim(), type: document.getElementById('newType').value,
-                category: document.getElementById('newCategory').value, viewLink: document.getElementById('newViewLink').value.trim(),
-                base64: uploadBase64, filename: uploadName, mimeType: uploadMime
+                title: document.getElementById('newTitle').value.trim(), 
+                type: document.getElementById('newType').value,
+                category: document.getElementById('newCategory').value, 
+                viewLink: document.getElementById('newViewLink').value.trim(),
+                base64: uploadBase64, 
+                filename: uploadName, 
+                mimeType: uploadMime
             };
 
             const apiUrl = SCRIPT_URL;
@@ -603,18 +610,20 @@
                     method: 'POST', 
                     body: JSON.stringify(payload) 
                 });
+                
                 const result = await res.json();
                 
                 if(result.status === 'success') {
-                    showToast("บันทึกข้อมูลขึ้นคลาวด์สำเร็จ!", "success");
+                    showToast("อัปโหลดหน้าปกและบันทึกข้อมูลเรียบร้อย!", "success");
                     closeAddMediaModal();
-                    fetchFromGoogleSheet(apiUrl); // ดึงข้อมูลใหม่หลังอัปเดต
+                    fetchFromGoogleSheet(apiUrl); // ดึงข้อมูลใหม่หลังอัปเดต เพื่อให้เห็นรูปทันที
                 } else {
-                    throw new Error(result.message || "ข้อมูลตอบกลับไม่ถูกต้อง");
+                    throw new Error(result.message || "การตอบกลับเกิดข้อผิดพลาด");
                 }
             } catch(err) {
                 console.error(err);
-                showToast("พบปัญหาในการติดต่อ Google Sheet (API Error)", "error");
+                showToast("พบปัญหาในการบันทึก กรุณาลองใหม่", "error");
+            } finally {
                 document.getElementById('uploadingOverlay').classList.add('hidden');
             }
         }
@@ -649,7 +658,7 @@
         function prevPage() { document.getElementById('bookMockContainer').style.transform = 'rotateY(8deg) scale(0.98)'; document.getElementById('pageFlipSound').currentTime=0; document.getElementById('pageFlipSound').play().catch(()=>{}); setTimeout(() => { document.getElementById('bookMockContainer').style.transform = 'rotateY(0deg) scale(1)'; updateFlipUI(); }, 200); }
         function nextPage() { document.getElementById('bookMockContainer').style.transform = 'rotateY(-8deg) scale(0.98)'; document.getElementById('pageFlipSound').currentTime=0; document.getElementById('pageFlipSound').play().catch(()=>{}); setTimeout(() => { document.getElementById('bookMockContainer').style.transform = 'rotateY(0deg) scale(1)'; updateFlipUI(); }, 200); }
 
-        function shareQR() { if(!currentBook) return; document.getElementById('qrcode').innerHTML = ""; new QRCode(document.getElementById("qrcode"), { text: currentBook.drive_view_link, width: 128, height: 128, colorDark: "#991B1B", colorLight: "#ffffff" }); document.getElementById('qrModal').classList.remove('hidden'); }
+        function shareQR() { if(!currentBook) return; document.getElementById('qrcode').innerHTML = ""; new QRCode(document.getElementById("qrcode"), { text: currentBook.drive_view_link, width: 128, height: 128, colorColor: "#991B1B", colorLight: "#ffffff" }); document.getElementById('qrModal').classList.remove('hidden'); }
         function openManageCategoriesModal() { document.getElementById('catListUI').innerHTML = categories.map(c => `<div class="flex justify-between items-center bg-slate-50 p-2 rounded text-[10px] border"><span>${c}</span><button onclick="delCat('${c}')" class="text-rose-600"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button></div>`).join(''); lucide.createIcons(); document.getElementById('manageCategoriesModal').classList.remove('hidden'); }
         function addCat() { const val = document.getElementById('newCatInput').value.trim(); if(val && !categories.includes(val)) { categories.push(val); localStorage.setItem('kp_cats', JSON.stringify(categories)); document.getElementById('newCatInput').value = ""; openManageCategoriesModal(); applyFilters(); showToast("เพิ่มหมวดหมู่แล้ว"); } }
         function delCat(c) { if(books.some(b=>b.category === c)) return showToast("ลบไม่ได้ มีสื่อในหมวดนี้", "error"); categories = categories.filter(x=>x!==c); localStorage.setItem('kp_cats', JSON.stringify(categories)); openManageCategoriesModal(); applyFilters(); showToast("ลบหมวดหมู่แล้ว"); }
